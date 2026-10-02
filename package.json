@@ -1,0 +1,48 @@
+{
+  "name": "@md-code/entities-uniqueness",
+  "version": "0.1.0",
+  "description": "ESLint rule + CLI that finds duplicate entities (classes, interfaces, object shapes, constructor functions) sharing the same members across the codebase — they should be declared once.",
+  "license": "MIT",
+  "main": "index.js",
+  "bin": {
+    "md-code-entities-uniqueness": "bin/entities-uniqueness.js"
+  },
+  "files": [
+    "index.js",
+    "plugin.js",
+    "config.js",
+    "thresholds.js",
+    "extract.js",
+    "matching.js",
+    "debt.js",
+    "report.js",
+    "scanner",
+    "bin",
+    "README.md"
+  ],
+  "exports": {
+    ".": "./index.js",
+    "./plugin": "./plugin.js"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "minimatch": "^9.0.4",
+    "typescript": "^5.5.0"
+  },
+  "peerDependencies": {
+    "eslint": ">=8.40.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "eslint",
+    "eslint-rule",
+    "duplicate-entities",
+    "code-duplication",
+    "refactoring",
+    "typescript"
+  ]
+}
