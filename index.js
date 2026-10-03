@@ -2,7 +2,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
-
+const { pipe, filter, flatMap, first } = require("remeda");
 const { normalizeOptions, isIgnored, resolveDataPath } = require("./config");
 const { resolveThresholds } = require("./thresholds");
 const { applyDebt, loadLedger, findRepoRoot } = require("./debt");
@@ -10,7 +10,7 @@ const { extractFromFile } = require("./extract");
 
 const RULE_ID = "entities-uniqueness";
 
-function loadCatalog(catalogPath) {
+const loadCatalog = (catalogPath) => {
 	try {
 		const raw = fs.readFileSync(catalogPath, "utf8");
 		const parsed = JSON.parse(raw);
@@ -19,22 +19,24 @@ function loadCatalog(catalogPath) {
 	} catch {
 		return null;
 	}
-}
+};
 
-function memberAbsPath(catalog, member) {
+const memberAbsPath = (catalog, member) => {
 	const p = member.path || "";
 	if (path.isAbsolute(p)) return p;
 	const base = catalog.repoRoot ? path.resolve(catalog.repoRoot) : process.cwd();
 	return path.resolve(base, p);
-}
+};
 
-function findClusterFor(catalog, rec) {
-	for (const cluster of catalog.clusters || []) {
-		const hit = (cluster.members || []).find((m) => memberAbsPath(catalog, m) === rec.path && m.line === rec.line);
-		if (hit) return { cluster, canonical: cluster.canonical };
-	}
-	return null;
-}
+const findClusterFor = (catalog, rec) => {
+	const cluster = pipe(
+		catalog.clusters || [],
+		filter((c) => pipe(c.members || [], filter((m) => memberAbsPath(catalog, m) === rec.path && m.line === rec.line), first)),
+		first,
+	);
+	if (!cluster) return null;
+	return { cluster, canonical: cluster.canonical };
+};
 
 module.exports = {
 	meta: {
@@ -98,8 +100,7 @@ module.exports = {
 		const filename = context0.getFilename ? context0.getFilename() : context0.filename;
 		const root = opts.root || (filename ? findRepoRoot(path.dirname(filename)) : null) || findRepoRoot(process.cwd());
 
-		const ledgerPath =
-			typeof opts.debt === "string" ? resolveDataPath(opts.debt, root) : path.join(root || process.cwd(), "reports", "lint-debt.json");
+		const ledgerPath = typeof opts.debt === "string" ? resolveDataPath(opts.debt, root) : path.join(root || process.cwd(), "reports", "lint-debt.json");
 		const ledger = opts.debt === false ? {} : loadLedger(ledgerPath);
 		const context = applyDebt(context0, ledger, RULE_ID);
 
@@ -122,13 +123,19 @@ module.exports = {
 				}
 
 				const records = extractFromFile(filename, { requireExported: thresholds.requireExported });
-				for (const rec of records) {
-					if (rec.members.length < thresholds.minMembers) continue;
-					const found = findClusterFor(catalog, rec);
-					if (!found) continue;
-					const { cluster, canonical } = found;
-					const canonicalAbs = memberAbsPath(catalog, canonical);
-					if (canonicalAbs === rec.path && canonical.line === rec.line) continue;
+				const hits = pipe(
+					records,
+					filter((rec) => rec.members.length >= thresholds.minMembers),
+					flatMap((rec) => {
+						const found = findClusterFor(catalog, rec);
+						if (!found) return [];
+						const { cluster, canonical } = found;
+						const canonicalAbs = memberAbsPath(catalog, canonical);
+						if (canonicalAbs === rec.path && canonical.line === rec.line) return [];
+						return [{ rec, cluster, canonical, canonicalAbs }];
+					}),
+				);
+				hits.forEach(({ rec, cluster, canonical, canonicalAbs }) => {
 					const relCanonical = path.relative(root, canonicalAbs).split(path.sep).join("/");
 					context.report({
 						node,
@@ -141,7 +148,7 @@ module.exports = {
 							tier: cluster.tier,
 						},
 					});
-				}
+				});
 			},
 		};
 	},
