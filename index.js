@@ -3,10 +3,10 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { pipe, filter, flatMap, first } = require("remeda");
-const { normalizeOptions, isIgnored, resolveDataPath } = require("./config");
+const { normalizeOptions, isIgnored, resolveDataPath, findRepoRoot } = require("./config");
 const { resolveThresholds } = require("./thresholds");
-const { applyDebt, loadLedger, findRepoRoot } = require("./debt");
-const { extractFromFile } = require("./extract");
+const { applyDebt, loadLedger } = require("./debt");
+const { extractFromFile } = require("./ast");
 
 const RULE_ID = "entities-uniqueness";
 
@@ -38,7 +38,7 @@ const findClusterFor = (catalog, rec) => {
 	return { cluster, canonical: cluster.canonical };
 };
 
-module.exports = {
+const rule = {
 	meta: {
 		type: "problem",
 		docs: {
@@ -151,5 +151,17 @@ module.exports = {
 				});
 			},
 		};
+	},
+};
+
+const pkg = require("./package.json");
+
+module.exports = {
+	meta: {
+		name: pkg.name,
+		version: pkg.version,
+	},
+	rules: {
+		"entities-uniqueness": rule,
 	},
 };

@@ -39,7 +39,7 @@ bun add -D @md-code/entities-uniqueness
 
 ```js
 // eslint.config.js
-const entitiesUniq = require("@md-code/entities-uniqueness/plugin");
+const entitiesUniq = require("@md-code/entities-uniqueness");
 
 module.exports = [
   {

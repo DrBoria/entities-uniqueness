@@ -12,17 +12,19 @@
     "plugin.js",
     "config.js",
     "thresholds.js",
-    "extract.js",
-    "matching.js",
+    "ast.js",
+    "main.js",
     "debt.js",
     "report.js",
-    "scanner",
+    "utils.js",
+    "matcher",
+    "filter",
     "bin",
     "README.md"
   ],
   "exports": {
     ".": "./index.js",
-    "./plugin": "./plugin.js"
+    "./plugin": "./index.js"
   },
   "scripts": {
     "test": "node --test"

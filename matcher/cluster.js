@@ -1,11 +1,7 @@
 "use strict";
 
-const { pipe, filter, map, flatMap, sort, first, reduce } = require("remeda");
-
-const sharedMembers = (a, b, ignored) => {
-	const setA = new Set(a);
-	return pipe(b, filter((m) => !ignored.has(m) && setA.has(m)));
-};
+const { pipe, filter, sort, first, reduce, flatMap } = require("remeda");
+const { sharedMembers } = require("./pair");
 
 const pickCanonical = (recs) =>
 	pipe(
@@ -17,15 +13,6 @@ const pickCanonical = (recs) =>
 		}),
 		first,
 	);
-
-const pairShared = (a, b, ignored, thresholds) => {
-	const shared = sharedMembers(a.members, b.members, ignored);
-	if (shared.length < thresholds.suspiciousMinShared) return null;
-	const smaller = Math.min(a.members.length, b.members.length);
-	const ratio = smaller > 0 ? shared.length / smaller : 0;
-	if (ratio < thresholds.minOverlapRatio) return null;
-	return shared;
-};
 
 const clusterSharedMembers = (recs, ignored) => {
 	if (recs.length === 0) return [];
@@ -42,25 +29,8 @@ const clusterSharedMembers = (recs, ignored) => {
 	return pipe(base, filter((m) => !ignored.has(m)), sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)));
 };
 
-const match = (records, thresholds) => {
-	const ignored = new Set(thresholds.ignoredMethods || []);
-	const n = records.length;
-	const eligible = pipe(
-		records.map((_, i) => i),
-		filter((i) => records[i].members.length >= thresholds.minMembers),
-	);
-
-	const pairs = [];
-	for (let x = 0; x < eligible.length; x += 1) {
-		const i = eligible[x];
-		for (let y = x + 1; y < eligible.length; y += 1) {
-			const j = eligible[y];
-			const shared = pairShared(records[i], records[j], ignored, thresholds);
-			if (shared) pairs.push({ a: i, b: j, shared });
-		}
-	}
-	pairs.sort((p, q) => q.shared.length - p.shared.length);
-
+const cluster = (pairs, records, ignored, thresholds) => {
+	if (pairs.length === 0) return [];
 	const pairKey = (i, j) => (i < j ? `${i}|${j}` : `${j}|${i}`);
 	const linked = new Set(pairs.map((p) => pairKey(p.a, p.b)));
 	const clusters = [];
@@ -97,8 +67,7 @@ const match = (records, thresholds) => {
 		});
 	}
 	clusters.sort((a, b) => b.members.length - a.members.length);
-
-	return { clusters, pairs };
+	return clusters;
 };
 
-module.exports = { match, pickCanonical };
+module.exports = { cluster, pickCanonical };
