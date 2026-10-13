@@ -5,37 +5,50 @@
   "license": "MIT",
   "main": "index.js",
   "bin": {
-    "md-code-entities-uniqueness": "bin/entities-uniqueness.js"
+    "md-code-entities-uniqueness": "main.js"
   },
   "files": [
     "index.js",
     "plugin.js",
     "config.js",
-    "thresholds.js",
-    "ast.js",
     "main.js",
-    "debt.js",
-    "report.js",
+    "logger.js",
     "utils.js",
-    "matcher",
-    "filter",
-    "bin",
+    "decision-maker.js",
+    "report.js",
+    "suggester.js",
+    "normalizer/",
+    "frameworks/",
+    "matcher/",
+    "filter/",
     "README.md"
   ],
   "exports": {
     ".": "./index.js",
-    "./plugin": "./index.js"
+    "./plugin": "./index.js",
+    "./config": "./config.js",
+    "./report": "./report.js",
+    "./package.json": "./package.json"
   },
   "scripts": {
-    "test": "node --test"
+    "gen:catalog": "node main.js",
+    "test": "vitest run"
   },
   "dependencies": {
+    "@reduxjs/toolkit": "^2.13.0",
+    "class-validator": "^0.15.1",
     "minimatch": "^9.0.4",
-    "remeda": "^2.50.0",
-    "typescript": "^5.5.0"
+    "mobx": "^7.0.6",
+    "ts-morph": "^28.0.0",
+    "typescript": "^5.5.0",
+    "zod": "^4.6.6",
+    "zustand": "^5.0.15"
   },
   "peerDependencies": {
     "eslint": ">=8.40.0"
+  },
+  "devDependencies": {
+    "vitest": "^5.0.3"
   },
   "publishConfig": {
     "access": "public"

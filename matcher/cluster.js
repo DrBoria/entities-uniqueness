@@ -1,73 +1,80 @@
 "use strict";
 
-const { pipe, filter, sort, first, reduce, flatMap } = require("remeda");
-const { sharedMembers } = require("./pair");
+// Groups matched pairs into clusters of mutually-similar entities.
+//
+// A cluster is a set of entities where each is "close enough" to at least one
+// other member. We start from the highest-confidence pairs and grow clusters,
+// merging when a new pair connects two existing clusters. This is a greedy
+// connected-component over the (already filtered) match graph, seeded by
+// confidence so the strongest links anchor each cluster.
+//
+// Only *strong* candidates (duplicate + extract) seed clusters: a weak "similar"
+// link (0.35) is not enough evidence to group entities for a refactor, and
+// letting it chain would merge unrelated entities into one giant cluster.
+//
+// Even within the strong tiers, a pair at the very bottom of the extract band
+// (0.55) is too weak to merge entities into one refactor cluster: a chain of
+// such links glues dozens of unrelated entities into a mega cluster. Only
+// pairs at or above CLUSTER_LINK_FLOOR form edges; weaker pairs still appear
+// in the pair tables, they just do not group.
 
-const pickCanonical = (recs) =>
-	pipe(
-		[...recs],
-		sort((a, b) => {
-			if (a.exported !== b.exported) return a.exported ? -1 : 1;
-			if (b.members.length !== a.members.length) return b.members.length - a.members.length;
-			return 0;
-		}),
-		first,
-	);
+const { DEFAULT_TUNING } = require("../tuning");
 
-const clusterSharedMembers = (recs, ignored) => {
-	if (recs.length === 0) return [];
-	const base = pipe(
-		recs,
-		reduce(
-			(acc, r) => {
-				const s = new Set(r.members);
-				return pipe(acc, filter((m) => s.has(m)));
-			},
-			[...recs[0].members],
-		),
-	);
-	return pipe(base, filter((m) => !ignored.has(m)), sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)));
-};
+const CLUSTER_TIERS = new Set(["duplicate", "extract"]);
 
-const cluster = (pairs, records, ignored, thresholds) => {
-	if (pairs.length === 0) return [];
-	const pairKey = (i, j) => (i < j ? `${i}|${j}` : `${j}|${i}`);
-	const linked = new Set(pairs.map((p) => pairKey(p.a, p.b)));
-	const clusters = [];
-	const placed = new Set();
-	const compat = (i, j) => (i === j ? true : linked.has(pairKey(i, j)));
+const clusterMatches = (matches, options = {}) => {
+	const floor = options.clusterFloor ?? DEFAULT_TUNING.cluster.linkFloor;
+	const strong = (matches || []).filter((m) => CLUSTER_TIERS.has(m.tier) && m.decision.confidence >= floor);
+	if (strong.length === 0) return [];
 
-	for (const p of pairs) {
-		if (placed.has(p.a) || placed.has(p.b)) continue;
-		const memberSet = new Set([p.a, p.b]);
-		for (const q of pairs) {
-			if (q === p) continue;
-			const cand = memberSet.has(q.a) ? q.b : memberSet.has(q.b) ? q.a : null;
-			if (cand === null || placed.has(cand) || memberSet.has(cand)) continue;
-			let ok = true;
-			for (const m of memberSet) {
-				if (!compat(m, cand)) {
-					ok = false;
-					break;
-				}
-			}
-			if (ok) memberSet.add(cand);
+	const byId = new Map();
+	const link = (a, b) => {
+		if (!byId.has(a.id)) byId.set(a.id, a);
+		if (!byId.has(b.id)) byId.set(b.id, b);
+	};
+	for (const m of strong) link(m.a, m.b);
+
+	// union-find
+	const parent = new Map();
+	const find = (x) => {
+		let r = x;
+		while (parent.get(r) !== r) r = parent.get(r);
+		while (parent.get(x) !== r) {
+			const next = parent.get(x);
+			parent.set(x, r);
+			x = next;
 		}
-		const recs = [...memberSet].map((i) => records[i]);
-		const minShared = Math.min(
-			...[...memberSet].flatMap((i) => [...memberSet].filter((j) => j !== i).map((j) => sharedMembers(records[i].members, records[j].members, ignored).length)),
-		);
-		const tier = minShared >= thresholds.duplicateMinShared ? "duplicate" : "suspicious";
-		for (const i of memberSet) placed.add(i);
-		clusters.push({
-			canonical: pickCanonical(recs),
-			members: recs,
-			tier,
-			shared: clusterSharedMembers(recs, ignored),
-		});
+
+		return r;
+	};
+	const union = (x, y) => {
+		const rx = find(x);
+		const ry = find(y);
+		if (rx !== ry) parent.set(rx, ry);
+	};
+	for (const id of byId.keys()) parent.set(id, id);
+
+	const sorted = [...strong].sort((p, q) => q.decision.confidence - p.decision.confidence);
+	for (const m of sorted) union(m.a.id, m.b.id);
+
+	const groups = new Map();
+	for (const id of byId.keys()) {
+		const r = find(id);
+		if (!groups.has(r)) groups.set(r, []);
+		groups.get(r).push(byId.get(id));
 	}
-	clusters.sort((a, b) => b.members.length - a.members.length);
+
+	const clusters = [...groups.values()]
+		.filter((g) => g.length >= 2)
+		.map((members) => {
+			// pairs within this cluster
+			const pairs = sorted.filter((m) => members.some((x) => x.id === m.a.id) && members.some((x) => x.id === m.b.id));
+
+			return { members: members.sort((x, y) => x.name.localeCompare(y.name)), pairs };
+		})
+		.sort((c, d) => d.members.length - c.members.length || d.pairs.length - c.pairs.length);
+
 	return clusters;
 };
 
-module.exports = { cluster, pickCanonical };
+module.exports = { clusterMatches };

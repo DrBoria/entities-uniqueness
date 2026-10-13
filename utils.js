@@ -2,7 +2,6 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
-const { pipe, map, sort, uniqueBy, filter } = require("remeda");
 
 const walk = (dir, exts, ignoreDirs) => {
 	const extSet = new Set(exts);
@@ -13,26 +12,30 @@ const walk = (dir, exts, ignoreDirs) => {
 	} catch {
 		return [];
 	}
-	const files = filter(entries, (e) => e.isFile() && extSet.has(path.extname(e.name))).map((e) => path.join(dir, e.name));
-	const dirs = filter(entries, (e) => e.isDirectory() && !ignoreSet.has(e.name) && !e.name.startsWith(".")).map((e) => walk(path.join(dir, e.name), exts, ignoreDirs));
+	const files = entries.filter((e) => e.isFile() && extSet.has(path.extname(e.name))).map((e) => path.join(dir, e.name));
+	const dirs = entries.filter((e) => e.isDirectory() && !ignoreSet.has(e.name) && !e.name.startsWith(".")).map((e) => walk(path.join(dir, e.name), exts, ignoreDirs));
+
 	return [...files, ...dirs.flat()];
 };
 
-const slimRecord = (rec, repoRoot) => {
-	const p = path.isAbsolute(rec.path) && repoRoot ? path.relative(repoRoot, rec.path) : rec.path;
-	return { ...rec, path: p.split(path.sep).join("/") };
+const relPosix = (repoRoot, abs) => path.relative(repoRoot, abs).split(path.sep).join("/");
+
+const dedupeBy = (items, keyOf) => {
+	const seen = new Set();
+	const out = [];
+	for (const item of items) {
+		const key = keyOf(item);
+		if (seen.has(key)) continue;
+		seen.add(key);
+		out.push(item);
+	}
+
+	return out;
 };
 
-const dedupeAndSort = (records) =>
-	pipe(
-		records,
-		uniqueBy((r) => `${r.path}|${r.line}|${r.name}`),
-		sort((a, b) => (a.path !== b.path ? (a.path < b.path ? -1 : 1) : a.line !== b.line ? a.line - b.line : a.name < b.name ? -1 : a.name > b.name ? 1 : 0)),
-	);
-
-const writeCatalog = (outPath, catalog) => {
+const writeJson = (outPath, data) => {
 	fs.mkdirSync(path.dirname(outPath), { recursive: true });
-	fs.writeFileSync(outPath, JSON.stringify(catalog, null, 2) + "\n", "utf8");
+	fs.writeFileSync(outPath, JSON.stringify(data, null, 2) + "\n", "utf8");
 };
 
-module.exports = { walk, slimRecord, dedupeAndSort, writeCatalog };
+module.exports = { walk, relPosix, dedupeBy, writeJson };
