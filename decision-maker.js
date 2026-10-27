@@ -8,7 +8,7 @@
 //
 // Tiers:
 //   duplicate : confidence >= duplicate threshold (default 0.85)
-//   extract   : confidence >= extract threshold   (default 0.55)
+//   extract   : confidence >= extract threshold   (default 0.50)
 //   similar   : confidence >= similar threshold   (default 0.35)
 //   (none)    : below similar — not reported as a candidate
 //
@@ -61,10 +61,112 @@ const resolveThresholds = (override) => {
 // just because they happen to both lack methods.
 const hasEvidence = (s) => s && s.hasEvidence !== false;
 
+// A type alias whose target is another entity in the project (`type X = Y`)
+// carries no shape of its own — it is a duplicate of `Y` by definition.
+const isAliasDuplicate = (a, b) => (a.aliasOf === b.name || b.aliasOf === a.name);
+
+// A hand-written type object whose shape duplicates a framework store model's
+// shape (e.g. `type DocumentData = {...}` vs `t.model("DocumentStore", {...})`).
+// The weighted score under-counts this because the store model has no methods
+// while the type copy may declare them, dragging the methods signal to 0. When
+// the type's data shape is mostly the store's shape (high overlap + type
+// agreement), the pair is a duplicate regardless of the methods mismatch.
+const isStoreModelCopy = (a, b) => {
+	const type = a.kind === "type" ? a : b.kind === "type" ? b : null;
+	const store = a.storeModel ? a : b.storeModel ? b : null;
+	if (!type || !store) return null;
+	// A tiny type sharing a couple of generic field names (id, name, ...) with a
+	// store is not a copy of it — require a real shape to compare.
+	if ((type.properties || []).length < 3) return null;
+	const s = propertyScore(type, store, {});
+	if (s.evidence.overlap >= 0.6 && s.evidence.typeAgreement >= 0.75) return s;
+
+	return null;
+};
+
+// Two entities of the same kind with the exact same data shape (every property
+// name and type matches, at least a couple of properties) are duplicates — the
+// weighted blend under-counts this when the names differ only slightly or one
+// side carries extra non-data signals.
+const isIdenticalShape = (a, b, signals) => {
+	if (!signals || !signals.properties || !signals.properties.evidence) return null;
+	if (a.kind !== b.kind) return null;
+	const ev = signals.properties.evidence;
+	// Two-field shapes ({id, name}, ...) are the most common shape in any
+	// codebase and are not discriminating evidence — that stays the territory
+	// of the weighted blend. Only a full, multi-field identical shape is a
+	// fast-path duplicate.
+	if (ev.aCount < 3 || ev.bCount < 3) return null;
+	if (ev.overlap < 1 || ev.typeAgreement < 1) return null;
+	// Identical shape under DIFFERENT names is an extraction opportunity
+	// (shared-type suggestion), not a duplicate. A copy carries a copy-like
+	// name (TokenQuery / TokenQueryCopy); two domain profiles that happen to
+	// converge on the same fields do not.
+	const nameScore = signals.name && signals.name.score;
+	if (typeof nameScore !== "number" || nameScore < 0.6) return null;
+
+	return {
+		isDuplicate: true,
+		tier: "duplicate",
+		confidence: 0.92,
+		reason: `identical shape: ${a.name} and ${b.name} have the same properties and types`,
+	};
+};
+
 const decide = (a, b, { signals, weights: rawWeights, thresholds: rawThresholds } = {}) => {
 	const weights = resolveWeights(rawWeights);
 	const thresholds = resolveThresholds(rawThresholds);
 	const sig = signals || {};
+
+	// Fast paths: structural facts that make a pair a duplicate no matter what
+	// the weighted signal blend says.
+	if (isAliasDuplicate(a, b)) {
+		const alias = a.aliasOf === b.name ? a : b;
+		const target = a.aliasOf === b.name ? b : a;
+		return {
+			isDuplicate: true,
+			confidence: 0.9,
+			tier: "duplicate",
+			reason: `alias duplicate: ${alias.name} is an alias of ${target.name}`,
+			signals: sig,
+			contributions: { properties: 0, methods: 0, signature: 0, name: 0, inheritance: 0 },
+			thresholds,
+			weights,
+			evidencing: [NAME_KEY],
+		};
+	}
+	const storeCopy = isStoreModelCopy(a, b);
+	if (storeCopy) {
+		const type = a.kind === "type" ? a : b;
+		const store = a.storeModel ? a : b;
+		const conf = Math.min(0.95, round(0.5 * storeCopy.evidence.overlap + 0.5 * storeCopy.evidence.typeAgreement + 0.45));
+		return {
+			isDuplicate: true,
+			confidence: conf,
+			tier: "duplicate",
+			reason: `store-model copy: ${type.name} duplicates the shape of store model ${store.name} (overlap ${storeCopy.evidence.overlap.toFixed(2)}, typeAgreement ${storeCopy.evidence.typeAgreement.toFixed(2)})`,
+			signals: sig,
+			contributions: { properties: storeCopy.score, methods: 0, signature: 0, name: 0, inheritance: 0 },
+			thresholds,
+			weights,
+			evidencing: ["properties", NAME_KEY],
+		};
+	}
+
+	const identical = isIdenticalShape(a, b, sig);
+	if (identical) {
+		return {
+			isDuplicate: true,
+			confidence: identical.confidence,
+			tier: identical.tier,
+			reason: identical.reason,
+			signals: sig,
+			contributions: { properties: sig.properties.score, methods: 0, signature: 0, name: 0, inheritance: 0 },
+			thresholds,
+			weights,
+			evidencing: ["properties"],
+		};
+	}
 
 	// The identity budget is the full weight the identity signals carry by default;
 	// it is re-distributed over whichever of them have evidence for this pair.

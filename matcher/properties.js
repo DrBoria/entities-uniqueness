@@ -47,6 +47,26 @@ const typeAgreement = (a, b) => {
 	return shared === 0 ? 1 : agree / shared;
 };
 
+// Brand/discriminant properties: a boolean-literal-typed field (`x: true`)
+// exists to make a type *nominally* distinct — it is identity, not data. When
+// two entities carry DIFFERENT brand sets (one has a brand the other lacks, or
+// they carry different brands), they are intentionally distinct nominal types,
+// so the overlap of their remaining data fields is a poor "duplicate" proxy.
+// Returns false only when both sides carry the exact same set of brands (which
+// may be empty).
+const brandSet = (props) => new Set((props || []).filter((p) => p && (p.type === "true" || p.type === "false")).map((p) => p.name));
+
+const brandsDiffer = (a, b) => {
+	const A = brandSet(a.properties);
+	const B = brandSet(b.properties);
+	if (A.size === 0 && B.size === 0) return false;
+	if (A.size === 0 || B.size === 0) return true;
+	for (const x of A) if (!B.has(x)) return true;
+	for (const x of B) if (!A.has(x)) return true;
+
+	return false;
+};
+
 // Fraction of shared property names whose canonical type is a generic
 // placeholder (no verified type). Returns 0 when there are no shared names.
 const genericShare = (a, b) => {
@@ -94,7 +114,12 @@ const score = (a, b, opts = {}) => {
 	// Generic-shape discount: when most shared names carry only unverified
 	// placeholder types, name agreement alone is weak evidence — pull the score
 	// down proportionally so same-shape un-annotated literals stay off 1.00.
-	if (g > 0 && value > 0) value *= 1 - T.genericShapeDiscount * g;
+	// However, a FULLY identical shape (jaccard=1, overlap=1, typeAgreement=1)
+	// is a copy-paste by definition — the shapes are byte-for-byte the same
+	// regardless of whether types are verified — so the discount never applies
+	// to it, whether the twins live in one file or two.
+	const fullyIdentical = j >= 1 && o >= 1 && t >= 1;
+	if (g > 0 && value > 0 && !fullyIdentical) value *= 1 - T.genericShapeDiscount * g;
 	// Single-shared-name discount: one shared field is too little to call the
 	// shapes similar (see SINGLE_SHARED_DISCOUNT).
 	if (inter === 1 && value > 0) value *= T.singleSharedDiscount;
@@ -110,8 +135,13 @@ const score = (a, b, opts = {}) => {
 	const aMethods = (a.methods || []).length;
 	const bMethods = (b.methods || []).length;
 	if (aTotal <= T.tinyShapeMaxFields && bTotal <= T.tinyShapeMaxFields && aMethods === 0 && bMethods === 0 && value > 0) value *= T.tinyShapeDiscount;
+	// Nominal-brand discount: when the two entities carry DIFFERENT brand /
+	// discriminant properties (boolean-literal fields like `__range: true`),
+	// they are intentionally distinct nominal types, so shared data fields are
+	// weak duplicate evidence — pull the score down (see brandsDiffer).
+	if (brandsDiffer(a, b) && value > 0) value *= 1 - T.brandDiscount;
 
-	return { score: value, hasEvidence, evidence: { jaccard: round(j), overlap: round(o), typeAgreement: round(t), genericShare: round(g), aCount: A.size, bCount: B.size, inter, union, aTotal, bTotal } };
+	return { score: value, hasEvidence, evidence: { jaccard: round(j), overlap: round(o), typeAgreement: round(t), genericShare: round(g), aCount: A.size, bCount: B.size, inter, union, aTotal, bTotal, brandsDiffer: brandsDiffer(a, b) } };
 };
 
 const round = (n) => Math.round(n * 1000) / 1000;

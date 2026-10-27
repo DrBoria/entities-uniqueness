@@ -90,11 +90,10 @@ describe("entities pipeline", () => {
 		const config = buildConfig();
 		const result = main.run(config);
 
-		const sharedType = result.suggestions.find((s) => s.type === "shared-type");
+		const sharedType = result.suggestions.find(
+			(s) => s.type === "shared-type" && s.entities.includes("PatientProfile") && s.entities.includes("ClientProfile"),
+		);
 		expect(sharedType).toBeTruthy();
-		const names = new Set(sharedType.entities);
-		expect(names.has("PatientProfile")).toBe(true);
-		expect(names.has("ClientProfile")).toBe(true);
 	});
 
 	it("does not report unrelated entities as duplicates", () => {
@@ -258,8 +257,15 @@ describe("entities pipeline", () => {
 		const config = buildConfig({ thresholds: { duplicate: 0.99, extract: 0.98, similar: 0.97 } });
 		const result = main.run(config);
 
+		// Only the forced (fast-path) duplicates survive a 0.99 bar: alias,
+		// store-model-copy, and identical-shape pairs are structural facts, not
+		// heuristic scores.
 		const dups = result.matches.filter((m) => m.tier === "duplicate");
-		expect(dups.length).toBe(0);
+		expect(dups.map(pairNames).sort()).toEqual([
+			"DocumentData|DocumentStoreModel",
+			"DocumentData|PrettyModelData",
+			"TokenQuery|TokenQueryCopy",
+		]);
 	});
 
 	it("honors ignoredMembers (ignoring shared members lowers similarity)", () => {

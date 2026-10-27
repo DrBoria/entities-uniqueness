@@ -1,23 +1,23 @@
 "use strict";
 
-// Aggregates the five similarity signals for a pair of entities.
+// Aggregates the per-signal matchers into a single signal bundle.
 //
-// Each signal returns { score: 0..1, evidence }. The decision-maker combines
-// them with weights; the report prints every signal's evidence so a score is
-// always explainable.
+// Each signal reports { score, hasEvidence, evidence } so the decision maker
+// can weight them and explain its verdict. See ./properties.js, ./methods.js,
+// ./signature.js, ./name.js, ./inheritance.js for the individual matchers.
 
-const properties = require("./properties");
-const methods = require("./methods");
-const signature = require("./signature");
-const name = require("./name");
-const inheritance = require("./inheritance");
+const properties = require("./properties.js");
+const methods = require("./methods.js");
+const signature = require("./signature.js");
+const name = require("./name.js");
+const inheritance = require("./inheritance.js");
 
 const matchSignals = (a, b, opts = {}) => ({
 	properties: properties.score(a, b, opts),
 	methods: methods.score(a, b, opts),
 	signature: signature.score(a, b, opts),
 	name: name.score(a, b, opts),
-	inheritance: inheritance.score(a, b, opts),
+	inheritance: inheritance.score(a, b),
 });
 
 module.exports = { matchSignals, properties, methods, signature, name, inheritance };

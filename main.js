@@ -25,7 +25,7 @@ const fail = (message) => {
 };
 
 const parseArgs = (argv) => {
-	const cfg = { roots: null, out: null, repoRoot: null, check: false, report: null, include: null, log: null, thresholds: null, verbose: false, configFile: null, requireExported: false };
+	const cfg = { roots: null, out: null, repoRoot: null, check: false, report: null, include: null, files: null, log: null, thresholds: null, verbose: false, configFile: null, requireExported: false };
 	for (let i = 0; i < argv.length; i += 1) {
 		const a = argv[i];
 		if (a === "--check") {
@@ -42,6 +42,9 @@ const parseArgs = (argv) => {
 		} else if (a === "--repo-root") {
 			if (!argv[i + 1]) fail("--repo-root requires a value");
 			cfg.repoRoot = argv[++i];
+		} else if (a === "--files") {
+			if (!argv[i + 1]) fail("--files requires a value (colon-separated list of files)");
+			cfg.files = argv[++i].split(":").filter(Boolean);
 		} else if (a === "--include") {
 			if (!argv[i + 1]) fail("--include requires a value (colon-separated list of file globs, e.g. a.ts:b.ts)");
 			cfg.include = argv[++i].split(":").filter(Boolean);
@@ -61,7 +64,7 @@ const parseArgs = (argv) => {
 			if (!argv[i + 1]) fail("--config requires a value (path to an eslint.config.js or a standalone options file)");
 			cfg.configFile = argv[++i];
 		} else if (a === "--help" || a === "-h") {
-			console.log("Usage: entities-uniqueness [--roots a:b] [--out file] [--repo-root dir] [--check] [--report [file.md]] [--include a.ts:b.ts] [--thresholds dup:ext:sim] [--require-exported] [--config file] [--log file] [--verbose]");
+			console.log("Usage: entities-uniqueness [--roots a:b] [--out file] [--repo-root dir] [--check] [--report [file.md]] [--files a.ts:b.ts] [--include a.ts:b.ts] [--thresholds dup:ext:sim] [--require-exported] [--config file] [--log file] [--verbose]");
 			console.log("Rule options (roots, weights, thresholds, ignoredProperties, include, exts) are read from the consumer's eslint.config.js (rule md-code/entities-uniqueness) or md-code-entities-uniqueness.config.js; --config points to a specific file. CLI flags override the config.");
 			process.exit(0);
 		} else {
@@ -103,6 +106,7 @@ const buildConfig = (root, ruleOptions, args) => {
 		tuning,
 		ignoredMembers,
 		roots: (args.roots || (Array.isArray(ro.roots) ? ro.roots : [])).map(String),
+		files: args.files ? args.files.map(String) : null,
 		include,
 		exclude,
 		requireExported: args.requireExported || ro.requireExported === true,
@@ -114,7 +118,15 @@ const buildConfig = (root, ruleOptions, args) => {
 };
 
 const collectFiles = (roots, repoRoot, config) => {
-	const files = [];
+	// --files restricts the scan to the given files (agent stop-hooks lint only
+	// changed files); missing files are skipped.
+	if (config.files && config.files.length) {
+		const files = config.files
+			.map((rel) => ({ file: resolveAgainst(rel, repoRoot), rel: rel.split(path.sep).join("/") }))
+			.filter((f) => fs.existsSync(f.file) && fs.statSync(f.file).isFile());
+		return { files, count: files.length };
+	}
+	const out = [];
 	let count = 0;
 	for (const relRoot of roots) {
 		const rootDir = resolveAgainst(relRoot, repoRoot);
@@ -123,20 +135,21 @@ const collectFiles = (roots, repoRoot, config) => {
 			const rel = relPosix(repoRoot, file);
 			if (isIgnored(rel, config.include, config.exclude)) continue;
 			count += 1;
-			files.push({ file, rel });
+			out.push({ file, rel });
 		}
 	}
 
-	return { files, count };
+	return { files: out, count };
 };
 
 // Extract + framework-normalize entities from a set of files.
-const extractEntities = (files, config) => {
+const extractEntities = (files, config, texts) => {
 	const entities = [];
 	for (const { file, rel } of files) {
 		let ctx;
 		try {
-			ctx = parseAndExtract(file, { requireExported: config.requireExported });
+			const text = texts && Object.prototype.hasOwnProperty.call(texts, rel) ? texts[rel] : undefined;
+			ctx = parseAndExtract(file, { requireExported: config.requireExported, text });
 		} catch (err) {
 			console.warn(`[entities-uniqueness] could not parse ${rel}: ${err && err.message ? err.message : err}`);
 			continue;
@@ -172,6 +185,23 @@ const matchPairs = (entities, config) => {
 			if (!decision.tier) continue;
 			matches.push({ a, b, decision, tier: decision.tier, reason: decision.reason });
 		}
+	}
+
+	return matches;
+};
+
+// Match one entity against a set of others (O(n) instead of the full O(n^2)
+// matchPairs — used by the eslint rule, which only needs pairs involving the
+// live file's entities).
+const matchEntityAgainst = (entity, others, config) => {
+	const matches = [];
+	const opts = { ignoredMembers: config.ignoredMembers, tuning: config.tuning };
+	for (const b of others) {
+		if (b.sourceFile === entity.sourceFile && b.name === entity.name) continue;
+		const signals = matchSignals(entity, b, opts);
+		const decision = decide(entity, b, { signals, weights: config.weights, thresholds: config.thresholds });
+		if (!decision.tier) continue;
+		matches.push({ a: entity, b, decision, tier: decision.tier, reason: decision.reason });
 	}
 
 	return matches;
@@ -303,10 +333,12 @@ const main = async (argv) => {
 	if (!root) fail("could not locate a repository root (no package.json with a root marker)");
 	const ruleOptions = await loadRuleOptions(root, args.configFile);
 	const config = buildConfig(root, ruleOptions, args);
-	if (!config.roots || config.roots.length === 0) fail("--roots is required (colon-separated list of directories)");
+	if (!config.files?.length && (!config.roots || config.roots.length === 0)) fail("--roots is required (colon-separated list of directories), or pass --files <a.ts:b.ts>");
 
 	const result = run(config);
-	const exportPath = writeCatalog(config, result);
+	// --files is a partial scan (agent stop-hooks) — do not clobber the
+	// folder-based catalog with a single-file one.
+	const exportPath = config.files?.length ? null : writeCatalog(config, result);
 
 	if (args.report) {
 		const reportPath = resolveAgainst(args.report, config.root);
@@ -316,7 +348,7 @@ const main = async (argv) => {
 
 	const dupCount = result.matches.filter((m) => m.tier === "duplicate").length;
 	const extractCount = result.matches.filter((m) => m.tier === "extract").length;
-	console.error(`[entities-uniqueness] scanned ${result.files} file(s), ${result.entityCount} entit${result.entityCount === 1 ? "y" : "ies"}; ${dupCount} duplicate pair(s), ${extractCount} extraction candidate pair(s); export → ${path.relative(process.cwd(), exportPath)}`);
+	console.error(`[entities-uniqueness] scanned ${result.files} file(s), ${result.entityCount} entit${result.entityCount === 1 ? "y" : "ies"}; ${dupCount} duplicate pair(s), ${extractCount} extraction candidate pair(s)${exportPath ? `; export → ${path.relative(process.cwd(), exportPath)}` : ""}`);
 
 	if (args.check && dupCount > 0) {
 		console.error(`[entities-uniqueness] --check: found ${dupCount} high-confidence duplicate pair(s)`);
@@ -333,4 +365,4 @@ if (require.main === module) {
 	});
 }
 
-module.exports = { run, main, parseArgs, buildConfig, collectFiles, extractEntities, matchPairs, dedupPairs, writeCatalog, applyFilters, decide, matchSignals, clusterMatches, suggest, renderEntityReport, loadCatalog, loadRuleOptions, findRepoRoot };
+module.exports = { run, main, parseArgs, buildConfig, collectFiles, extractEntities, matchPairs, matchEntityAgainst, dedupPairs, writeCatalog, applyFilters, decide, matchSignals, clusterMatches, suggest, renderEntityReport, loadCatalog, loadRuleOptions, findRepoRoot };

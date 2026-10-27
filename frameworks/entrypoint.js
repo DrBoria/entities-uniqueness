@@ -15,8 +15,10 @@
 const REGISTRY = {
 	zod: () => require("./zod"),
 	mobx: () => require("./mobx"),
+	mst: () => require("./mst"),
 	redux: () => require("./redux"),
 	zustand: () => require("./zustand"),
+	keystone: () => require("./keystone"),
 	"class-validator": () => require("./class-validator"),
 };
 

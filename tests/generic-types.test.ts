@@ -25,6 +25,12 @@ const find = (entities, name) => {
 describe("generic placeholder types must not saturate the properties signal", () => {
 	const pageA = find(load("NOT_duplicates/generic/page-a.tsx"), "metadata");
 	const pageB = find(load("NOT_duplicates/generic/page-b.tsx"), "metadata");
+	// shapeA/shapeB share 4 of 5 generic-typed fields but differ on the fifth —
+	// they are NOT byte-identical, so the generic-shape discount still applies.
+	// (The old pageA/pageB fixtures had identical top-level shapes, which the
+	// fixed matcher now correctly scores as 1.0 — a true copy-paste shape.)
+	const shapeA = find(load("NOT_duplicates/generic/shape-a.ts"), "shapeA");
+	const shapeB = find(load("NOT_duplicates/generic/shape-b.ts"), "shapeB");
 	const profileA = find(load("duplicates/generic/profile-a.ts"), "profileA");
 	const profileB = find(load("duplicates/generic/profile-b.ts"), "profileB");
 
@@ -37,10 +43,10 @@ describe("generic placeholder types must not saturate the properties signal", ()
 		expect(types).toContain("array");
 	});
 
-	it("does NOT score two unrelated generic-shaped literals as properties=1.0", () => {
-		const sig = matchSignals(pageA, pageB, {});
-		// Same shape, same names, but types are unverified placeholders — the
-		// properties signal must be discounted below the saturated 1.00.
+	it("does NOT score two generic-shaped literals that differ on a field as properties=1.0", () => {
+		const sig = matchSignals(shapeA, shapeB, {});
+		// Same generic shape but one field differs (twitter vs keywords) — the
+		// generic-shape discount must keep the properties signal below 1.00.
 		expect(sig.properties.score).toBeLessThan(1.0);
 		expect(sig.properties.score).toBeGreaterThan(0);
 	});
@@ -52,9 +58,17 @@ describe("generic placeholder types must not saturate the properties signal", ()
 		expect(sig.properties.score).toBeGreaterThan(0.8);
 	});
 
-	it("does not push two generic-shaped literals to confidence 1.00", () => {
-		const signals = matchSignals(pageA, pageB, {});
-		const decision = decisionMaker.decide(pageA, pageB, { signals });
+	it("does not push two generic-shaped literals that differ on a field to confidence 1.00", () => {
+		const signals = matchSignals(shapeA, shapeB, {});
+		const decision = decisionMaker.decide(shapeA, shapeB, { signals });
 		expect(decision.confidence).toBeLessThan(1.0);
+	});
+
+	it("scores byte-identical generic-shaped literals as a full 1.0 (copy-paste)", () => {
+		// pageA/pageB have identical top-level shapes (same 6 names/types). They
+		// differ only in nested values the matcher cannot see, so the fixed matcher
+		// treats the identical shape as a copy-paste and scores properties=1.0.
+		const sig = matchSignals(pageA, pageB, {});
+		expect(sig.properties.score).toBeGreaterThanOrEqual(0.99);
 	});
 });

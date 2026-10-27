@@ -37,7 +37,7 @@ module.exports = [
     rules: {
       "md-code/entities-uniqueness": ["error", {
         exportPath: "reports/entities-catalog.json",
-        thresholds: { duplicate: 0.85, extract: 0.55, similar: 0.35 },
+        thresholds: { duplicate: 0.85, extract: 0.5, similar: 0.35 },
       }],
     },
   },
@@ -89,8 +89,8 @@ Tiers:
 | Tier | Range | Meaning |
 | --- | --- | --- |
 | `duplicate` | `≥ 0.85` | Near-duplicate — strong candidate to delete/merge |
-| `extract` | `0.55 – 0.85` | Strong extraction candidate |
-| `similar` | `0.35 – 0.55` | Weak similarity, informational |
+| `extract` | `0.50 – 0.85` | Strong extraction candidate |
+| `similar` | `0.35 – 0.50` | Weak similarity, informational |
 
 Thresholds and weights are both configurable (see Options).
 
@@ -120,7 +120,7 @@ Read from the rule in `eslint.config.js` (rule `md-code/entities-uniqueness`) or
 | --- | --- | --- |
 | `roots` | `[]` | Directories to scan; required unless passed via `--roots` |
 | `weights` | see table above | Per-signal weights |
-| `thresholds` | duplicate 0.85, extract 0.55, similar 0.35 | Confidence cut-offs |
+| `thresholds` | duplicate 0.85, extract 0.50, similar 0.35 | Confidence cut-offs |
 | `ignoredProperties` | `[]` | `string[]` of property/method names to ignore when scoring (e.g. `id`, `name`). Config-supplied only — the framework never invents a list. `ignoredMembers` is accepted as an alias. |
 | `include` | `[]` | Only scan matching files |
 | `exclude` | tests, stories, `*.d.ts` | Globs to skip |

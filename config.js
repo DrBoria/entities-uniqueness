@@ -8,7 +8,9 @@ const { minimatch } = require("minimatch");
 // stories and .d.ts are real code and must be scanned like everything else.
 const DEFAULT_EXCLUDE = ["**/node_modules/**"];
 const DEFAULT_EXTS = [".ts", ".tsx", ".js", ".jsx"];
-const DEFAULT_IGNORE_DIRS = ["node_modules", "dist", "build", "storybook-static"];
+// The walker does not read .gitignore, so common build-artifact names must be
+// listed here explicitly ("out" is the default VS Code extension build dir).
+const DEFAULT_IGNORE_DIRS = ["node_modules", "dist", "build", "out", "coverage", "storybook-static"];
 const DEFAULT_ROOT_MARKERS = [".git"];
 
 const RULE_NAME = "md-code/entities-uniqueness";
@@ -63,6 +65,7 @@ const normalizeOptions = (opts) => {
 		exts: list(o.exts).length ? list(o.exts) : DEFAULT_EXTS,
 		ignoreDirs: o.ignoreDirs ? [...new Set([...DEFAULT_IGNORE_DIRS, ...list(o.ignoreDirs)])] : DEFAULT_IGNORE_DIRS,
 		rootMarkers,
+		cache: o.cache !== false,
 	};
 };
 

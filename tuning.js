@@ -15,7 +15,7 @@
 const DEFAULT_TUNING = {
 	// decision-maker: signal weights + tier thresholds
 	weights: { properties: 0.25, methods: 0.3, signature: 0.2, name: 0.15, inheritance: 0.1 },
-	thresholds: { duplicate: 0.85, extract: 0.55, similar: 0.35 },
+	thresholds: { duplicate: 0.85, extract: 0.5, similar: 0.35 },
 
 	// candidate matcher (raw geometry, pre-decision)
 	candidates: {
@@ -36,6 +36,11 @@ const DEFAULT_TUNING = {
 		singleSharedDiscount: 0.5,
 		tinyShapeDiscount: 0.5,
 		tinyShapeMaxFields: 2,
+		// Nominal-type discount: when the two entities carry different brand /
+		// discriminant properties (boolean-literal fields like `__range: true`),
+		// they are intentionally distinct nominal types, so shared data fields are
+		// weak duplicate evidence. Pull the score down by this fraction.
+		brandDiscount: 0.5,
 	},
 
 	// methods matcher
@@ -84,4 +89,9 @@ const resolveTuning = (override) => {
 	};
 };
 
-module.exports = { DEFAULT_TUNING, resolveTuning };
+module.exports = {
+	DEFAULT_TUNING,
+	resolveTuning,
+	weights: DEFAULT_TUNING.weights,
+	thresholds: DEFAULT_TUNING.thresholds,
+};

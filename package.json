@@ -17,11 +17,15 @@
     "decision-maker.js",
     "report.js",
     "suggester.js",
+    "tuning.js",
+    "tree-builder.js",
+    "filter/",
     "normalizer/",
     "frameworks/",
     "matcher/",
     "filter/",
-    "README.md"
+    "README.md",
+    "self-catalog.js"
   ],
   "exports": {
     ".": "./index.js",

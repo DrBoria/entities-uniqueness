@@ -1,44 +1,43 @@
 "use strict";
 
-// Filter registry + applyFilters.
+// Applies the filter registry to raw matches.
 //
-// A filter is { name, test(match) -> reasonString|null }. If test returns a
-// string, the match is dropped with that reason; null means "keep". Filters run
-// in order and the first hit wins.
+// Each filter is either a plain `{ name, test(match) }` (test returns a reason
+// string when the match must be dropped, or null to keep it) or a factory
+// `{ name, makeTest(tuning) }` that produces such a test from the tuning.
+// A match survives only if no filter rejects it.
 
-const dropUsages = require("./drop-usages");
-const dropInheritance = require("./drop-inheritance");
-const frameworkResidual = require("./framework-residual");
-const log = require("../logger");
+const dropInheritance = require("./drop-inheritance.js");
+const dropUsages = require("./drop-usages.js");
+const dropStoreLinked = require("./drop-store-linked.js");
+const frameworkResidual = require("./framework-residual.js");
 
-const buildFilters = (tuning) => [dropUsages, dropInheritance, { name: frameworkResidual.name, test: frameworkResidual.makeTest(tuning) }];
+const REGISTRY = [dropInheritance, dropUsages, dropStoreLinked, frameworkResidual];
 
-const applyFilters = (matches, options = {}) => {
-	const FILTERS = buildFilters(options.tuning);
+const applyFilters = (matches, { tuning } = {}) => {
+	const tests = REGISTRY.map((f) => ({
+		name: f.name,
+		test: typeof f.makeTest === "function" ? f.makeTest(tuning) : f.test,
+	}));
+
 	const kept = [];
 	const dropped = [];
-	for (const match of matches) {
-		if (log.enabled()) {
-			log.stage("filter:before", { a: { name: match.a.name, path: match.a.sourceFile }, b: { name: match.b.name, path: match.b.sourceFile }, confidence: match.decision.confidence });
-		}
-		let hit = null;
-		for (const f of FILTERS) {
-			const reason = f.test(match);
-			if (reason) {
-				hit = { match, filter: f.name, reason };
+	for (const match of matches || []) {
+		let reason = null;
+		let filter = null;
+		for (const t of tests) {
+			const r = t.test(match);
+			if (r) {
+				reason = r;
+				filter = t.name;
 				break;
 			}
 		}
-		if (hit) {
-			dropped.push({ a: hit.match.a, b: hit.match.b, match: hit.match, filter: hit.filter, reason: hit.reason });
-			if (log.enabled()) log.stage("filter:after", { a: { name: match.a.name, path: match.a.sourceFile }, b: { name: match.b.name, path: match.b.sourceFile }, outcome: "dropped", filter: hit.filter, reason: hit.reason });
-		} else {
-			kept.push(match);
-			if (log.enabled()) log.stage("filter:after", { a: { name: match.a.name, path: match.a.sourceFile }, b: { name: match.b.name, path: match.b.sourceFile }, outcome: "kept", confidence: match.decision.confidence });
-		}
+		if (reason) dropped.push({ ...match, reason, filter });
+		else kept.push(match);
 	}
 
 	return { kept, dropped };
 };
 
-module.exports = { applyFilters, buildFilters };
+module.exports = { applyFilters, REGISTRY };

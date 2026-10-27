@@ -106,9 +106,9 @@ const renderFilteredSection = (dropped) => {
 	lines.push("");
 	lines.push("| Entity A | Entity B | Filter | Why dropped |");
 	lines.push("| --- | --- | --- | --- |");
-	const sorted = [...dropped].sort((a, b) => a.filter.localeCompare(b.filter) || a.match.a.name.localeCompare(b.match.a.name));
+	const sorted = [...dropped].sort((a, b) => a.filter.localeCompare(b.filter) || a.a.name.localeCompare(b.a.name));
 	for (const d of sorted) {
-		lines.push(`| ${d.match.a.name} | ${d.match.b.name} | ${d.filter} | ${d.reason} |`);
+		lines.push(`| ${d.a.name} | ${d.b.name} | ${d.filter} | ${d.reason} |`);
 	}
 	lines.push("");
 
