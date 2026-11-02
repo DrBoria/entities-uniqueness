@@ -175,3 +175,7 @@ bun --cwd entities-uniqueness run test
 ```
 
 `tests/pipeline.test.ts` exercises extraction, tiers, clustering, suggestions, filters, thresholds and `ignoredMembers` through `main.run`; `tests/cli.test.ts` drives `main.js` end-to-end (help, error handling, full report + catalog, threshold override, stage log).
+
+## License
+
+[Apache License 2.0](./LICENSE)

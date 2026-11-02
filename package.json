@@ -2,7 +2,16 @@
   "name": "@md-code/entities-uniqueness",
   "version": "0.1.0",
   "description": "ESLint rule + CLI that finds duplicate entities (classes, interfaces, object shapes, constructor functions) sharing the same members across the codebase — they should be declared once.",
-  "license": "MIT",
+  "license": "Apache-2.0",
+  "author": "DrBoria <dr.boria@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DrBoria/entities-uniqueness.git"
+  },
+  "bugs": {
+    "url": "https://github.com/DrBoria/entities-uniqueness/issues"
+  },
+  "homepage": "https://github.com/DrBoria/entities-uniqueness#readme",
   "main": "index.js",
   "bin": {
     "md-code-entities-uniqueness": "main.js"
