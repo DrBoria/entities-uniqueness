@@ -6,7 +6,7 @@ const path = require("node:path");
 
 const { findRepoRoot, isIgnored, DEFAULT_EXTS, DEFAULT_IGNORE_DIRS, loadRuleOptions, loadCatalog } = require("./config");
 const { walk, relPosix, writeJson } = require("./utils");
-const { parseAndExtract } = require("./normalizer");
+const { parseAndExtract, setTsConfig } = require("./normalizer");
 const { normalizeEntities } = require("./frameworks/entrypoint");
 const { matchSignals } = require("./matcher");
 const { findCandidates } = require("./matcher/candidates");
@@ -145,6 +145,8 @@ const collectFiles = (roots, repoRoot, config) => {
 // Extract + framework-normalize entities from a set of files.
 const extractEntities = (files, config, texts) => {
 	const entities = [];
+	// The program every type comes from: explicit `tsconfig`, else the nearest one.
+	setTsConfig(config.tsconfig);
 	for (const { file, rel } of files) {
 		let ctx;
 		try {

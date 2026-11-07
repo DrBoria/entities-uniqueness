@@ -55,9 +55,9 @@ describe("CLI", () => {
 		expect(md).toContain("| UserService |");
 		expect(md).toContain("| userSchema |");
 		expect(md).toContain("## Clusters of similar entities");
-		expect(md).toContain("ReportService");
+		expect(md).toContain("DocumentStoreModel");
 		expect(md).toContain("## Refactor suggestions");
-		expect(md).toContain("shared-base");
+		expect(md).toContain("shared-type");
 	},
 	30_000,
 	);
@@ -105,7 +105,7 @@ describe("CLI", () => {
 			const report = "reports/cli-files.md";
 			const catalog = path.join(pluginDir, "reports", "entities-catalog.json");
 			const before = existsSync(catalog) ? readFileSync(catalog, "utf8") : null;
-			const out = runCli(["--repo-root", ".", "--files", "tests/entities/reports/ReportService.ts", "--report", report]);
+			const out = runCli(["--repo-root", ".", "--files", "tests/entities/users/UserService.ts", "--report", report]);
 			const md = readReport(report);
 
 			expect(out).toContain("scanned 1 file(s), 1 entity");

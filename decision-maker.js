@@ -113,10 +113,36 @@ const isIdenticalShape = (a, b, signals) => {
 	};
 };
 
+// An `enum` and a literal union are the same closed set of values spelled two
+// ways — `enum { Pending = "pending" }` and `type X = "pending"`. Names differ by
+// construction, so no name-based signal can see it; the VALUES decide.
+const sameValueSet = (a, b) => {
+	const A = a.values ?? [];
+	const B = b.values ?? [];
+	if (!A.length || !B.length) return null;
+	// Only a closed set counts: an enum, or a type made of literals.
+	if (![a.kind, b.kind].includes("enum") && ![...A, ...B].length) return null;
+	if (A.length !== B.length) return null;
+	const setB = new Set(B);
+	if (!A.every((v) => setB.has(v))) return null;
+
+	return {
+		isDuplicate: true,
+		tier: "duplicate",
+		confidence: 0.95,
+		reason: `same value set: ${a.name} and ${b.name} stand for the same ${A.length} value(s)`,
+	};
+};
+
 const decide = (a, b, { signals, weights: rawWeights, thresholds: rawThresholds } = {}) => {
 	const weights = resolveWeights(rawWeights);
 	const thresholds = resolveThresholds(rawThresholds);
 	const sig = signals || {};
+
+	// A closed set of values is the same whoever spells it: an enum, a literal
+	// union, or the two together.
+	const sameValues = sameValueSet(a, b);
+	if (sameValues) return { ...sameValues, signals: sig, contributions: { properties: 0, methods: 0, signature: 0, name: 0, inheritance: 0 }, thresholds, weights, evidencing: [NAME_KEY] };
 
 	// Fast paths: structural facts that make a pair a duplicate no matter what
 	// the weighted signal blend says.

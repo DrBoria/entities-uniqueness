@@ -11,8 +11,60 @@
 // run afterwards and re-normalize the entities they recognize.
 
 const { readFileSync } = require("node:fs");
-const { Project } = require("ts-morph");
+const path = require("node:path");
+const { Project, SyntaxKind, ts } = require("ts-morph");
 const { canonicalType } = require("./types.js");
+const { extractEnum } = require("./enums.js");
+const { unionValues } = require("./values.js");
+
+// ── The program ─────────────────────────────────────────────────────────────
+//
+// A type is a question about the WHOLE project. `getType()` on a value imported
+// from another file answers `any` when the program cannot resolve that file, and
+// an unknown type makes two different shapes look identical — the matcher then
+// decides a duplicate on a fact the tool got wrong. So the program is built from
+// the repo's own tsconfig (`paths`, `baseUrl` and module resolution live there)
+// and reused across files, instead of a fresh single-file project per parse.
+// `setTsConfig` is the explicit override for a project that keeps its config
+// somewhere else.
+let project = null;
+let projectConfig;
+let explicitConfig = null;
+const fileCache = new Map();
+
+// ts-morph renders a type it had to resolve through a module as
+// `import("/abs/path").Name`. The path is environment-specific, so the same code
+// produced different type strings in different checkouts — and never matched the
+// plain `Name` written in an annotation.
+const sanitizeTypeText = (text) => String(text || "").replace(/import\("[^"]*"\)\./g, "").replace(/import\("[^"]*"\)/g, "import");
+
+const setTsConfig = (configPath) => {
+	const next = configPath ? path.resolve(configPath) : null;
+	if (next === explicitConfig) return;
+	explicitConfig = next;
+	project = null;
+	projectConfig = undefined;
+	fileCache.clear();
+};
+
+const configFor = (file) => {
+	// The file's OWN tree first: a monorepo keeps a tsconfig per package, and the
+	// nearest one describes this file. The explicit path is the fallback for a
+	// project whose config does not sit above its sources.
+	return ts.findConfigFile(path.dirname(file), ts.sys.fileExists) || explicitConfig;
+};
+
+const projectFor = (file) => {
+	const config = configFor(file);
+	if (project && config === projectConfig) return project;
+	projectConfig = config;
+	project = config
+		? new Project({ tsConfigFilePath: config })
+		: new Project({ compilerOptions: { allowJs: true, jsx: 1 /* React */ } });
+	fileCache.clear();
+
+	return project;
+};
 
 // Placeholder type strings for values whose concrete type cannot be inferred.
 const GENERIC_TYPES = new Set(["object", "array"]);
@@ -62,7 +114,7 @@ const inferType = (node) => {
 			const typeNode = call(node, "getTypeNode");
 			if (typeNode) return canonicalType(typeNode) || "object";
 			const resolved = resolveType(node);
-			if (resolved) return resolved.getText() || "object";
+			if (resolved) return sanitizeTypeText(resolved.getText()) || "object";
 			return "object";
 		}
 
@@ -79,7 +131,7 @@ const inferType = (node) => {
 			if (typeof resolved.isNumberLiteral === "function" && resolved.isNumberLiteral()) return "number";
 			if (typeof resolved.isStringLiteral === "function" && resolved.isStringLiteral()) return "string";
 			if (typeof resolved.isTemplateLiteral === "function" && resolved.isTemplateLiteral()) return "string";
-			const text = resolved.getText();
+			const text = sanitizeTypeText(resolved.getText());
 			if (text && text !== "any" && text !== "unknown") return text;
 		}
 		return "object";
@@ -91,6 +143,25 @@ const inferType = (node) => {
 // Properties of an object-literal node: [{ name, type }].
 // Factory members (`key: () => ({...})`) contribute the properties of the
 // returned object instead of a bare "function" type.
+// `x satisfies Foo`, `x as const`, `<Foo>x` — the assertion WRAPS the value, and
+// the entity is the value. `isConst` marks `as const`, whose shape is the literal.
+const ASSERTION_KINDS = new Map([
+	[SyntaxKind.AsExpression, "as"],
+	[SyntaxKind.SatisfiesExpression, "satisfies"],
+	[SyntaxKind.TypeAssertionExpression, "asserts"],
+]);
+
+const assertionOf = (initializer) => {
+	let node = initializer;
+	while (node && nodeKind(node) === SyntaxKind.ParenthesizedExpression) node = call(node, "getExpression");
+	const form = ASSERTION_KINDS.get(nodeKind(node));
+	if (!form) return { node: initializer, form: null, type: null, isConst: false };
+	const typeNode = call(node, "getTypeNode");
+	const type = typeNode ? String(typeNode.getText()) : null;
+
+	return { node: call(node, "getExpression") ?? initializer, form, type, isConst: type === "const" };
+};
+
 const objectLiteralMembers = (objectLiteralNode) => {
 	const members = [];
 	for (const member of call(objectLiteralNode, "getProperties") || []) {
@@ -153,6 +224,17 @@ const extractClassLike = (node, { name, exported, sourceFile, isInterface }) => 
 	const methods = [];
 	const { SyntaxKind } = require("ts-morph");
 
+	// `interface Box<T> { value: T }` and `interface Box<U> { value: U }` are the
+	// same shape. A declared type parameter is a HOLE, not a name, so every type
+	// mentioning one is canonicalized to the same placeholder.
+	const holes = (call(node, "getTypeParameters") || []).map((p) => call(p, "getName")).filter(Boolean);
+	const canon = (typeNode, fallback) => {
+		const text = (typeNode && canonicalType(typeNode)) || fallback;
+		if (!holes.length || !text) return text;
+
+		return text.replace(new RegExp(`\\b(?:${holes.join("|")})\\b`, "g"), "§");
+	};
+
 	for (const member of call(node, "getMembers") || []) {
 		// ts-morph 28 member nodes lack the isPropertyDeclaration()/
 		// isMethodDeclaration() predicates — dispatch on the kind instead.
@@ -163,11 +245,19 @@ const extractClassLike = (node, { name, exported, sourceFile, isInterface }) => 
 			const typeNode = call(member, "getTypeNode");
 			const initializer = call(member, "getInitializer");
 			const type = typeNode
-				? canonicalType(typeNode) || "object"
+				? canon(typeNode, "object")
 				: initializer
 					? inferType(initializer)
 					: "object";
-			properties.push({ name: pName, type });
+			const words = (call(member, "getModifiers") || []).map((x) => x.getText());
+			properties.push({
+				name: pName,
+				type,
+				// `#value` is private to the class; `static`/`readonly` say what it is.
+				...(String(pName).startsWith("#") ? { private: true } : {}),
+				...(words.includes("static") ? { static: true } : {}),
+				...(words.includes("readonly") ? { readonly: true } : {}),
+			});
 			continue;
 		}
 		if (mk === SyntaxKind.MethodDeclaration || mk === SyntaxKind.MethodSignature) {
@@ -175,7 +265,7 @@ const extractClassLike = (node, { name, exported, sourceFile, isInterface }) => 
 			if (!mName) continue;
 			const params = (call(member, "getParameters") || []).map((p) => call(p, "getName") || "");
 			const typeNode = call(member, "getReturnType");
-			methods.push({ name: mName, params, returnType: typeNode ? canonicalType(typeNode) || "void" : "void" });
+			methods.push({ name: mName, params, returnType: typeNode ? canon(typeNode, "void") : "void" });
 			continue;
 		}
 		// Constructor parameter properties (`constructor(private x: string)`)
@@ -214,10 +304,21 @@ const extractClassLike = (node, { name, exported, sourceFile, isInterface }) => 
 	const line = lineOf(node, sourceFile);
 	const endLine = lineOf(node, sourceFile, true);
 
+	// Decorators by NAME: a framework is recognised by what it is told, not
+	// by what a file is called.
+	const decorators = (call(node, "getDecorators") || []).map((d) => {
+		const expr = call(d, "getExpression") ?? d;
+		const name = call(expr, "getExpression") ?? expr;
+
+		return String(call(name, "getText") ?? call(expr, "getText") ?? "").split(".").pop();
+	});
+
 	return {
 		id: `${sourceFile.getFilePath()}#${name}`,
 		name,
 		kind: isInterface ? "interface" : "class",
+		decorators,
+
 		sourceFile: sourceFile.getFilePath(),
 		line,
 		endLine,
@@ -309,6 +410,9 @@ const extractTypeAlias = (node, { name, exported, sourceFile }) => {
 		complexity: properties.length + methods.length,
 		aliasOf,
 		typeText,
+		// `type X = "a" | "b"` is a closed set of values — the same set an enum of
+		// those values stands for.
+		values: unionValues(typeNode),
 	};
 };
 
@@ -345,17 +449,17 @@ const extractObject = (name, objectNode, { exported, sourceFile, imports }) => {
 const parseAndExtract = (file, options = {}) => {
 	const { requireExported = false } = options;
 	let text = options.text;
-	const project = new Project({
-		useInMemoryFileSystem: Boolean(text),
-		compilerOptions: { allowJs: true, jsx: 1 /* React */ },
-	});
-	let sourceFile;
+	const program = projectFor(file);
+	let sourceFile = fileCache.get(file);
 	if (text !== undefined) {
-		sourceFile = project.createSourceFile(file, text, { overwrite: true });
+		// The editor's live buffer wins over the disk copy, on the SAME program —
+		// so every other file still resolves around it.
+		if (!sourceFile || sourceFile.getFullText() !== text) sourceFile = program.createSourceFile(file, text, { overwrite: true });
 	} else {
-		sourceFile = project.addSourceFileAtPath(file);
+		if (!sourceFile) sourceFile = program.getSourceFile(file) ?? program.addSourceFileAtPath(file);
 		text = readFileSync(file, "utf8");
 	}
+	fileCache.set(file, sourceFile);
 
 	const imports = new Set();
 	for (const decl of call(sourceFile, "getImportDeclarations") || []) {
@@ -375,7 +479,10 @@ const parseAndExtract = (file, options = {}) => {
 
 	const isExported = (node) => {
 		const mods = call(node, "getModifiers") || [];
-		return mods.some((m) => call(m, "isKeyword") && String(call(m, "getText")) === "export");
+		// The modifier's TEXT is the whole answer: `isKeyword()` is not available on
+		// every modifier node in this ts-morph version, and `export default` spells
+		// two words.
+		return mods.some((m) => String(call(m, "getText")).split(/\s+/).includes("export"));
 	};
 
 	const { SyntaxKind } = require("ts-morph");
@@ -392,8 +499,12 @@ const parseAndExtract = (file, options = {}) => {
 			const stmt = node;
 			for (const decl of call(stmt, "getDeclarations") || []) {
 				const name = call(decl, "getName");
-				const initializer = call(decl, "getInitializer");
-				if (!name || !initializer) continue;
+				const declaredInit = call(decl, "getInitializer");
+				if (!name || !declaredInit) continue;
+				// `x satisfies Foo` / `x as const` — the ASSERTION is not the value: the
+				// entity is what stands under it, and the assertion is recorded beside it.
+				const assertion = assertionOf(declaredInit);
+				const initializer = assertion.node;
 				const exported = isExported(stmt) || exportList.has(name);
 				if (requireExported && !exported) continue;
 				const ik = nodeKind(initializer);
@@ -406,8 +517,11 @@ const parseAndExtract = (file, options = {}) => {
 					// annotation, and the literal is still its own entity.
 					const typeNode = call(decl, "getTypeNode");
 					const isNamedType = typeNode && nodeKind(typeNode) === SyntaxKind.TypeReference && (call(typeNode, "getTypeArguments") || []).length === 0;
-					if (isNamedType) continue;
-					push(extractObject(name, initializer, { exported, sourceFile, imports }));
+					// `const x: Foo = …` and `const x = … satisfies Foo` are one statement:
+					// the shape is named, and the literal is an instance of it.
+					const namesShape = assertion.form === "satisfies" && assertion.type;
+					if (isNamedType || namesShape) continue;
+					push({ ...extractObject(name, initializer, { exported, sourceFile, imports }), assertion: assertion.form, constValue: assertion.isConst });
 				} else if (isClassLikeNode(initializer)) {
 					const exprName = call(initializer, "getName") || name;
 					push(extractClassLike(initializer, { name: exprName, exported, sourceFile, isInterface: false }));
@@ -442,6 +556,15 @@ const parseAndExtract = (file, options = {}) => {
 			if (!name) return;
 			const entity = extractTypeAlias(node, { name, exported: isExported(node), sourceFile });
 			if (entity) push(entity);
+			return;
+		}
+		// An enum is a shape like any other: a closed set of names and values.
+		if (k === SyntaxKind.EnumDeclaration) {
+			const name = call(node, "getName");
+			if (!name) return;
+			const exported = isExported(node) || exportList.has(name);
+			if (requireExported && !exported) return;
+			push(extractEnum(node, { name, exported, sourceFile }));
 		}
 	});
 
@@ -458,4 +581,5 @@ module.exports = {
 	inferType,
 	objectLiteralMembers,
 	parseAndExtract,
+	setTsConfig,
 };

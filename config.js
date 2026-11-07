@@ -48,7 +48,15 @@ const normalizeOptions = (opts) => {
 
 	return {
 		root,
-		exportPath: o.exportPath || "reports/entities-catalog.json",
+		// Where the project's TypeScript lives. Property types come from the
+		// checker, so a program built without `paths`/`baseUrl` reads an aliased
+		// import as `any` — and an unknown type makes two different shapes look
+		// identical. Resolved against `root`; the nearest tsconfig is the fallback.
+		tsconfig: o.tsconfig ? path.resolve(root, String(o.tsconfig)) : null,
+		// `exportPath` is THE name for "where this rule writes its catalog",
+		// shared by every rule in the family; `catalogPath` is accepted as the
+		// other spelling of the same option.
+		exportPath: o.exportPath || o.catalogPath || "reports/entities-catalog.json",
 		weights: o.weights && typeof o.weights === "object" ? o.weights : null,
 		thresholds: o.thresholds && typeof o.thresholds === "object" ? o.thresholds : null,
 		// Central tuning (weights, thresholds, matcher discounts, cluster floor,

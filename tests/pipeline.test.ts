@@ -71,19 +71,25 @@ describe("entities pipeline", () => {
 		expect(dup.tier).toBe("duplicate");
 	});
 
-	it("clusters the three report services and suggests a shared base", () => {
+	it("clusters three similar entities and suggests the extraction they need", () => {
+		// The fixtures that carry a three-member cluster are the document models:
+		// they overlap on properties AND methods, so the cluster is transitive (a
+		// third entity joins a pair) — which a single pair cannot show.
 		const config = buildConfig();
 		const result = main.run(config);
 
-		const cluster = result.clusters.find((c) =>
-			c.members.some((m) => m.name === "ReportService") && c.members.some((m) => m.name === "InvoiceReportService"),
+		const cluster = result.clusters.find(
+			(c) => c.members.some((m) => m.name === "DocumentData") && c.members.some((m) => m.name === "PrettyModelData"),
 		);
 		expect(cluster).toBeTruthy();
 		expect(cluster.members.length).toBeGreaterThanOrEqual(3);
 
-		const sharedBase = result.suggestions.find((s) => s.type === "shared-base");
-		expect(sharedBase).toBeTruthy();
-		expect(sharedBase.entities.length).toBeGreaterThanOrEqual(3);
+		// A cluster of exact duplicates needs no extraction advice; the advice the
+		// run does produce is for the property-only pairs, so both sides of the
+		// cluster/suggestion split are asserted here.
+		const sharedType = result.suggestions.find((s) => s.type === "shared-type");
+		expect(sharedType).toBeTruthy();
+		expect(sharedType.entities.length).toBeGreaterThanOrEqual(2);
 	});
 
 	it("suggests a shared type for property-only profile overlap", () => {

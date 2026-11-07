@@ -13,6 +13,29 @@ const DEFAULT_EXPORT = "reports/entities-catalog.json";
 // Severity per tier: duplicates are hard errors, extraction candidates are warnings.
 const TIER_SEVERITY = { duplicate: "error", extract: "warn", similar: "off" };
 
+// A file matches a single glob when the exclude-style matcher accepts it
+// (`isIgnored` reports the NEGATION of an include match).
+const matchesPattern = (rel, pattern) =>
+	typeof pattern === "string" && pattern.length > 0 && !isIgnored(rel, [pattern], []);
+
+// `knownDuplicates: [[globA, globB], ...]` lists pairs of file sets whose
+// duplication is known by construction (two IDE adapters implementing the same
+// contract, a twin file per platform, ...). Any number of pairs works. Only the
+// two sides of a listed pair are excused from each other; every other pair of
+// files — including files inside the same pair's folders against anything
+// else — is still compared and still reported.
+const isKnownDuplicate = (fileA, fileB, knownDuplicates) => {
+	if (!Array.isArray(knownDuplicates)) return false;
+
+	return knownDuplicates.some(
+		(pair) =>
+			Array.isArray(pair) &&
+			pair.length === 2 &&
+			((matchesPattern(fileA, pair[0]) && matchesPattern(fileB, pair[1])) ||
+				(matchesPattern(fileA, pair[1]) && matchesPattern(fileB, pair[0]))),
+	);
+};
+
 // Re-run the match pipeline in-process so the CURRENT file is always judged
 // from its live in-memory source, not from the (possibly stale) on-disk
 // catalog. The cached catalog supplies the OTHER files' entities — that is the
@@ -55,6 +78,7 @@ const computeLiveMatches = ({ context, options, root, relPath, catalog }) => {
 
 		return matches
 			.filter((m) => m.a.sourceFile === relPath || m.b.sourceFile === relPath)
+			.filter((m) => !isKnownDuplicate(m.a.sourceFile, m.b.sourceFile, options.knownDuplicates))
 			.map((m) => ({
 				a: { name: m.a.name, sourceFile: m.a.sourceFile, line: m.a.line, kind: m.a.kind, framework: m.a.framework },
 				b: { name: m.b.name, sourceFile: m.b.sourceFile, line: m.b.line, kind: m.b.kind, framework: m.b.framework },
@@ -65,7 +89,16 @@ const computeLiveMatches = ({ context, options, root, relPath, catalog }) => {
 	} catch {
 		// Any in-process failure falls back to the on-disk catalog so the rule
 		// degrades gracefully instead of crashing the lint pass.
-		return Array.isArray(catalog.matches) ? catalog.matches : null;
+		return Array.isArray(catalog.matches)
+			? catalog.matches.filter(
+					(m) =>
+						!isKnownDuplicate(
+							(m.a && m.a.sourceFile) || "",
+							(m.b && m.b.sourceFile) || "",
+							options.knownDuplicates,
+						),
+				)
+			: null;
 	}
 };
 
@@ -90,6 +123,8 @@ const liveConfig = (options, catalog) => {
 	const tuning = resolveTuning(options.tuning);
 
 	return {
+		// The program the types come from: explicit `tsconfig`, else the nearest one.
+		tsconfig: options.tsconfig ? path.resolve(options.root || process.cwd(), String(options.tsconfig)) : null,
 		requireExported: Boolean(options.requireExported),
 		ignoredMembers: options.ignoredMembers || [],
 		weights: catalog && catalog.weights ? catalog.weights : tuning.weights,
@@ -122,12 +157,22 @@ const createRule = () => {
 				{
 					type: "object",
 					properties: {
+						tsconfig: { type: "string", description: "Path to the project's tsconfig.json (relative to `root`). Types — and therefore `paths`/`baseUrl` — come from the checker, so without it an aliased import reads as `any`." },
 						catalog: { type: "array" },
-						exportPath: { type: "string" },
+						exportPath: {
+							type: "string",
+							description: "Where the catalog is written, relative to `root`. Default `reports/entities-catalog.json`.",
+						},
+						catalogPath: { type: "string", description: "Alias of `exportPath`." },
 						weights: { type: "object" },
 						thresholds: { type: "object" },
 						include: { type: "array" },
 						exclude: { type: "array" },
+						knownDuplicates: {
+							type: "array",
+							description:
+								"Pairs of globs whose duplication is known and accepted: [[globA, globB], ...]. Only the two sides of a listed pair are excused from each other; everything else is still reported.",
+						},
 						roots: { type: "array" },
 						ignoredProperties: { type: "array", items: { type: "string" } },
 						ignoredMembers: { type: "array", items: { type: "string" } },
