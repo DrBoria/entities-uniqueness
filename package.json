@@ -1,6 +1,6 @@
 {
   "name": "@md-code/entities-uniqueness",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "ESLint rule + CLI that finds duplicate entities (classes, interfaces, object shapes, constructor functions) sharing the same members across the codebase — they should be declared once.",
   "license": "Apache-2.0",
   "author": "DrBoria <dr.boria@gmail.com>",
@@ -33,6 +33,9 @@
     "frameworks/",
     "matcher/",
     "filter/",
+    "report/",
+    "constants.js",
+    "evidence.js",
     "README.md",
     "self-catalog.js"
   ],
@@ -45,13 +48,19 @@
   },
   "scripts": {
     "gen:catalog": "node main.js",
+    "overview": "node main.js --overview",
     "test": "vitest run"
   },
   "dependencies": {
+    "@md-code/code-diff": "file:../code-diff",
     "@reduxjs/toolkit": "^2.13.0",
     "class-validator": "^0.15.1",
+    "esbuild": "^0.28.2",
     "minimatch": "^9.0.4",
     "mobx": "^7.0.6",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "styled-components": "^6.6.0",
     "ts-morph": "^28.0.0",
     "typescript": "^5.5.0",
     "zod": "^4.6.6",
@@ -61,6 +70,7 @@
     "eslint": ">=8.40.0"
   },
   "devDependencies": {
+    "prismjs": "^1.30.0",
     "vitest": "^5.0.3"
   },
   "publishConfig": {

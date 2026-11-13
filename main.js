@@ -25,7 +25,7 @@ const fail = (message) => {
 };
 
 const parseArgs = (argv) => {
-	const cfg = { roots: null, out: null, repoRoot: null, check: false, report: null, include: null, files: null, log: null, thresholds: null, verbose: false, configFile: null, requireExported: false };
+	const cfg = { roots: null, out: null, repoRoot: null, check: false, report: null, overview: null, include: null, files: null, log: null, thresholds: null, verbose: false, configFile: null, requireExported: false };
 	for (let i = 0; i < argv.length; i += 1) {
 		const a = argv[i];
 		if (a === "--check") {
@@ -33,6 +33,9 @@ const parseArgs = (argv) => {
 		} else if (a === "--report") {
 			const next = argv[i + 1];
 			cfg.report = next && !next.startsWith("--") ? argv[++i] : "reports/entities-similarity.md";
+		} else if (a === "--overview") {
+			const next = argv[i + 1];
+			cfg.overview = next && !next.startsWith("--") ? argv[++i] : "reports/entities-overview.html";
 		} else if (a === "--roots") {
 			if (!argv[i + 1]) fail("--roots requires a value (colon-separated list of directories)");
 			cfg.roots = argv[++i].split(":").filter(Boolean);
@@ -346,6 +349,14 @@ const main = async (argv) => {
 		const reportPath = resolveAgainst(args.report, config.root);
 		fs.mkdirSync(path.dirname(reportPath), { recursive: true });
 		fs.writeFileSync(reportPath, renderEntityReport(result), "utf8");
+	}
+
+	if (args.overview) {
+		const { collectOverviewData, writeOverview } = require("./report/user-report");
+		const comp = { ...result, ignoredMembers: config.ignoredMembers, tuning: config.tuning };
+		const data = collectOverviewData({ comp, repoRoot: config.root, config, catalogPath: exportPath });
+		const written = writeOverview(data, resolveAgainst(args.overview, config.root));
+		console.error(`[entities-uniqueness] wrote overview ${path.relative(process.cwd(), written.path)} (${data.findings.length} finding(s), ${Math.round(written.bytes / 1024)} kB)`);
 	}
 
 	const dupCount = result.matches.filter((m) => m.tier === "duplicate").length;
