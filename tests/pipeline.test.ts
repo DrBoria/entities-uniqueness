@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 
 const require = createRequire(import.meta.url);
-const main = require("../main.js");
+const main = require("../dist/main.js");
 
 const pluginDir = path.resolve(__dirname, "..");
 const ENTITIES_ROOT = "tests/entities";
@@ -100,7 +100,7 @@ describe("entities pipeline", () => {
 	it("grows a cluster transitively when a third entity links to a pair", () => {
 		// Transitivity is the clusterer's job: A–B and B–C are strong links, so C
 		// joins the A–B cluster even though A–C was never compared directly.
-		const { clusterMatches } = require("../matcher/cluster.js");
+		const { clusterMatches } = require("../dist/matcher/cluster.js");
 		const ent = (name) => ({ id: `x:${name}`, name });
 		const link = (a, b, confidence) => ({ a: ent(a), b: ent(b), tier: "duplicate", decision: { confidence } });
 		const clusters = clusterMatches([link("A", "B", 0.9), link("B", "C", 0.88)]);

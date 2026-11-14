@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { signature } = require("../matcher/index.js");
-const decisionMaker = require("../decision-maker.js");
-const { matchSignals } = require("../matcher/index.js");
+const { signature } = require("../dist/matcher/index.js");
+const decisionMaker = require("../dist/decision-maker.js");
+const { matchSignals } = require("../dist/matcher/index.js");
 
 // Build a synthetic entity with the shape the matchers consume.
 const ent = (name, methods, props = []) => ({

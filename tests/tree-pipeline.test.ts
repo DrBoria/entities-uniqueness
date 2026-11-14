@@ -3,11 +3,11 @@ import { createRequire } from "node:module";
 import path from "node:path";
 
 const require = createRequire(import.meta.url);
-const main = require("../main.js");
-const { findCandidates } = require("../matcher/candidates.js");
-const { decideFacts } = require("../decision-maker.js");
-const { buildTrees } = require("../tree-builder.js");
-const { renderEntityReport } = require("../report.js");
+const main = require("../dist/main.js");
+const { findCandidates } = require("../dist/matcher/candidates.js");
+const { decideFacts } = require("../dist/decision-maker.js");
+const { buildTrees } = require("../dist/tree-builder.js");
+const { renderEntityReport } = require("../dist/report.js");
 
 const pluginDir = path.resolve(__dirname, "..");
 const TREES_ROOT = "tests/duplicates/trees";

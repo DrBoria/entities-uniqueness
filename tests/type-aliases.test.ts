@@ -3,11 +3,11 @@ import { createRequire } from "node:module";
 import path from "node:path";
 
 const require = createRequire(import.meta.url);
-const main = require("../main.js");
-const normalizer = require("../normalizer/index.js");
-const { normalizeEntities } = require("../frameworks/entrypoint.js");
-const { matchSignals } = require("../matcher/index.js");
-const { decide } = require("../decision-maker.js");
+const main = require("../dist/main.js");
+const normalizer = require("../dist/normalizer/index.js");
+const { normalizeEntities } = require("../dist/frameworks/entrypoint.js");
+const { matchSignals } = require("../dist/matcher/index.js");
+const { decide } = require("../dist/decision-maker.js");
 
 const pluginDir = path.resolve(__dirname, "..");
 const ENTITIES_ROOT = "tests/entities";

@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 
 const require = createRequire(import.meta.url);
-const { rules } = require("../index.js");
+const { rules } = require("../dist/index.js");
 const rule = rules["entities-uniqueness"];
 
 // The same shape, three times, in three sibling folders. Identical members make

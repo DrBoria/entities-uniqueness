@@ -3,8 +3,8 @@ import { createRequire } from "node:module";
 import path from "node:path";
 
 const require = createRequire(import.meta.url);
-const normalizer = require("../normalizer/index.js");
-const { normalizeEntities } = require("../frameworks/entrypoint.js");
+const normalizer = require("../dist/normalizer/index.js");
+const { normalizeEntities } = require("../dist/frameworks/entrypoint.js");
 
 const pluginDir = path.resolve(__dirname, "..");
 const ZOD_FILE = path.join(pluginDir, "tests", "entities", "zod", "chomp-schema.ts");

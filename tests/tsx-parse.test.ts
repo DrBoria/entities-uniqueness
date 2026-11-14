@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 
 const require = createRequire(import.meta.url);
-const normalizer = require("../normalizer/index.js");
+const normalizer = require("../dist/normalizer/index.js");
 
 const pluginDir = path.resolve(__dirname, "..");
 const TSX_FILE = path.join(pluginDir, "tests", "entities", "tsx", "panel.tsx");

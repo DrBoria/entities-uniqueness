@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 
 const pluginDir = path.resolve(__dirname, "..");
-const mainJs = path.join(pluginDir, "main.js");
+const mainJs = path.join(pluginDir, "dist", "main.js");
 const tmpRoot = mkdtempSync(path.join(os.tmpdir(), "eu-cli-"));
 
 afterAll(() => {

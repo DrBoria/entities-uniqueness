@@ -3,9 +3,9 @@ import { createRequire } from "node:module";
 import path from "node:path";
 
 const require = createRequire(import.meta.url);
-const { parseAndExtract } = require("../normalizer/index.js");
-const { decide } = require("../decision-maker.js");
-const { matchSignals } = require("../matcher/index.js");
+const { parseAndExtract } = require("../dist/normalizer/index.js");
+const { decide } = require("../dist/decision-maker.js");
+const { matchSignals } = require("../dist/matcher/index.js");
 
 const FIXTURE = path.resolve(__dirname, "entities-enums/shapes.ts");
 
