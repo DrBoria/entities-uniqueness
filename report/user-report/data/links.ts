@@ -138,19 +138,26 @@ const valuesLinks = (model) => {
 	return links;
 };
 
-const inheritanceLinks = (model) => {
+const inheritanceLinks = (model, leftEntity, rightEntity) => {
 	if (!model || !model.hasEvidence) return [];
 	const links = [];
 	// The alias fact: the alias name on one side, the target name on the other.
+	// `aliasFact` orients the pair either way (the alias may be the LEFT or the
+	// RIGHT entity), so place each name on the column of the entity that owns it —
+	// otherwise the link points at words that are not in that column and no ribbon
+	// is drawn.
 	if (model.alias) {
+		const aliasIsLeft = leftEntity && model.alias.alias === leftEntity.name;
+		const leftName = aliasIsLeft ? model.alias.alias : model.alias.target;
+		const rightName = aliasIsLeft ? model.alias.target : model.alias.alias;
 		links.push({
 			connectionId: "same:inheritance:alias",
 			label: "alias",
 			tone: "same",
 			leftColumn: "0",
 			rightColumn: "1",
-			left: { name: model.alias.alias },
-			right: { name: model.alias.target },
+			left: { name: leftName },
+			right: { name: rightName },
 		});
 	}
 	if (model.shared.length > 0) {
@@ -171,12 +178,12 @@ const inheritanceLinks = (model) => {
 };
 
 // All links per signal, keyed by the SIGNAL the tab selects.
-const linksBySignal = (analysis) => ({
+const linksBySignal = (analysis, leftEntity, rightEntity) => ({
 	properties: propertyLinks(analysis.properties),
 	methods: methodLinks(analysis.methods),
 	signature: signatureLinks(analysis.signature),
 	values: valuesLinks(analysis.values),
-	inheritance: inheritanceLinks(analysis.inheritance),
+	inheritance: inheritanceLinks(analysis.inheritance, leftEntity, rightEntity),
 });
 
 export {  linksBySignal, propertyLinks, methodLinks, signatureLinks, valuesLinks, inheritanceLinks  };

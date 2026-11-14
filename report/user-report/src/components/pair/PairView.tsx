@@ -1,6 +1,6 @@
 "use strict";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import styled from "styled-components";
 import { SIGNALS } from "../../../../errorTypes/vocabulary/labels";
 import { usePairBoard } from "../../hooks/usePairBoard";
@@ -18,6 +18,30 @@ import { pairTheme } from "./theme";
 // no rectangle, no ribbon itself.
 
 const GUTTERS = { 3: 220, 4: 300, 5: 380 };
+
+// The tab that best explains WHY the two entities are connected: the signal with
+// the most semantic links (the ribbons), tie-broken by the applied signal score.
+// An alias pair has only an inheritance link, so it opens on Inheritance — not on
+// an empty Properties tab that shows "0%" and no ribbon.
+const defaultSignal = (pair, decision) => {
+	const signals = decision?.signals ?? [];
+	const scoreOf = (key) => {
+		const s = signals.find((item) => item.key === key);
+		return s && s.applied !== false ? (s.score ?? 0) : 0;
+	};
+	let best = SIGNALS[0].key;
+	let bestRank = -1;
+	for (const item of SIGNALS) {
+		const links = pair?.links?.[item.key]?.length ?? 0;
+		const rank = links * 1000 + scoreOf(item.key);
+		if (rank > bestRank) {
+			bestRank = rank;
+			best = item.key;
+		}
+	}
+
+	return best;
+};
 
 const Frame = styled.div`
 	border: 1px solid ${pairTheme.chrome.border};
@@ -38,10 +62,18 @@ const Head = styled.div`
 `;
 
 export const PairView = ({ pair, decision }) => {
-	const [mode, setMode] = useState(SIGNALS[0].key);
+	const [mode, setMode] = useState(() => defaultSignal(pair, decision));
 	const [set, setSet] = useState(5);
 	const [expanded, setExpanded] = useState(false);
 	const board = usePairBoard(pair, mode);
+
+	// A new pair opens on the tab that explains ITS connection, not the previous
+	// pair's tab.
+	const findingId = pair?.findingId;
+	useEffect(() => {
+		setMode(defaultSignal(pair, decision));
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [findingId]);
 
 	if (!pair) return null;
 	const gutter = GUTTERS[set];
