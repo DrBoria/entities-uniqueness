@@ -16,11 +16,9 @@ export const tones = {
 export const boardTheme = {
 	paper: pairTheme.chrome.panelAlt,
 	paint: pairTheme.mark.same,
-	paintInk: pairTheme.chrome.text,
 	ribbon: pairTheme.chrome.text,
 	panel: pairTheme.chrome.panel,
 	edge: pairTheme.chrome.border,
-	edgeStrong: pairTheme.chrome.borderStrong,
 	text: pairTheme.chrome.text,
 	dim: pairTheme.chrome.dim,
 	faint: pairTheme.chrome.faint,
