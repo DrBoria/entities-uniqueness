@@ -135,3 +135,46 @@ describe("value-tree comparison semantics", () => {
 		expect(score(a, b).hasEvidence).toBe(false);
 	});
 });
+
+describe("closed value sets (enum ↔ union) carry linkable text", () => {
+	const { build } = require("../dist/report/matchers/values/model.js");
+	const { valuesLinks } = require("../dist/report/user-report/data/links.js");
+
+	// An enum and a string union holding the same literals: a closed set on both
+	// sides. The report model must keep the value TEXT on each row (not a bare
+	// boolean) so the view can anchor a ribbon on the exact word.
+	const left = { name: "ShipmentState", values: ["created", "packed", "delivered"] };
+	const right = { name: "ShipmentStatus", values: ["created", "packed", "delivered"] };
+
+	it("the set-form model records text on both sides of a shared value", () => {
+		const model = build(left, right, {});
+		expect(model.form).toBe("set");
+		expect(model.sharedCount).toBe(3);
+		for (const row of model.rows) {
+			expect(row.left).toEqual({ text: row.name });
+			expect(row.right).toEqual({ text: row.name });
+			expect(row.shared).toBe(true);
+		}
+	});
+
+	it("valuesLinks draws one ribbon per shared value with the text as anchor", () => {
+		const model = build(left, right, {});
+		const links = valuesLinks(model);
+		expect(links).toHaveLength(3);
+		for (const link of links) {
+			expect(link.left.name).toBe(link.right.name);
+			expect(link.leftColumn).toBe("0");
+			expect(link.rightColumn).toBe("1");
+			expect(link.tone).toBe("same");
+		}
+	});
+
+	it("a value present on only one side has no link and no phantom text", () => {
+		const model = build(left, { name: "Other", values: ["created", "lost"] }, {});
+		const lost = model.rows.find((r) => r.name === "lost");
+		expect(lost.shared).toBe(false);
+		expect(lost.left).toBeNull();
+		expect(lost.right).toEqual({ text: "lost" });
+		expect(valuesLinks(model).map((l) => l.left.name)).toEqual(["created"]);
+	});
+});

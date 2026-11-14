@@ -41,13 +41,20 @@ const build = (left, right, opts = {}) => {
 	if (!left || !right) return null;
 	const signal = score(left, right, opts);
 
-	// Closed value sets: one row per value in the union.
+	// Closed value sets: one row per value in the union. `left`/`right` carry the
+	// value TEXT (the literal as written) when that side has the member, so the
+	// view can locate and paint the exact word — a boolean would leave the link
+	// with nothing to anchor on and no ribbon would be drawn.
 	const setA = left.values ?? [];
 	const setB = right.values ?? [];
 	if (setA.length && setB.length) {
 		const bSet = new Set(setB);
 		const names = [...new Set([...setA, ...setB])];
-		const rows = names.map((value) => ({ name: value, left: setA.includes(value), right: bSet.has(value), shared: setA.includes(value) && bSet.has(value), same: setA.includes(value) && bSet.has(value) }));
+		const rows = names.map((value) => {
+			const inA = setA.includes(value);
+			const inB = bSet.has(value);
+			return { name: value, left: inA ? { text: value } : null, right: inB ? { text: value } : null, shared: inA && inB, same: inA && inB };
+		});
 
 		return { form: "set", rows, sharedCount: rows.filter((r) => r.shared).length, score: signal.score, hasEvidence: signal.hasEvidence, evidence: signal.evidence };
 	}

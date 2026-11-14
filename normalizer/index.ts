@@ -275,6 +275,22 @@ const extractClassLike = (node, { name, exported, sourceFile, isInterface }) => 
 			methods.push({ name: mName, params, returnType: typeNode ? canon(typeNode, "void") : "void", line: lineOf(member, sourceFile) });
 			continue;
 		}
+		// A getter (`get darkMode(): boolean`) is a READ-ONLY PROPERTY to a reader of
+		// the class: it exposes a value under a name, exactly like a readonly field.
+		// Extracting it as a property lets a getter-based view be compared with an
+		// interface / state object that declares the same fields.
+		if (mk === SyntaxKind.GetAccessor) {
+			const gName = call(member, "getName");
+			if (!gName) continue;
+			const typeNode = call(member, "getReturnType");
+			properties.push({
+				name: gName,
+				type: typeNode ? canon(typeNode, "object") : "object",
+				line: lineOf(member, sourceFile),
+				readonly: true,
+			});
+			continue;
+		}
 		// Constructor parameter properties (`constructor(private x: string)`)
 		// are Parameters carrying visibility/readonly modifiers — they are
 		// properties of the class, not method args.

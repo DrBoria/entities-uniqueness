@@ -73,8 +73,27 @@ const walk = (a, b, acc) => {
 	if (a.kind === "object") {
 		const A = a.entries || {};
 		const B = b.entries || {};
-		const keys = [...new Set([...Object.keys(A), ...Object.keys(B)])];
-		let all = Object.keys(A).length === Object.keys(B).length;
+		const keysA = Object.keys(A);
+		const keysB = Object.keys(B);
+		const sharedKeys = keysA.filter((k) => Object.prototype.hasOwnProperty.call(B, k));
+		// Key NAMES are identity, not value: a renamed copy changes every key and
+		// keeps every value. When the two objects share (almost) no key names but
+		// have the same arity, compare the values POSITIONALLY — the i-th value of
+		// one against the i-th value of the other. Declaration order is the only
+		// remaining correspondence, and a full positional match is exactly the
+		// "renamed copy" the fast path decides on.
+		const renamed = keysA.length === keysB.length && keysA.length > 0 && sharedKeys.length * 2 < keysA.length;
+		if (renamed) {
+			let all = true;
+			for (let i = 0; i < keysA.length; i += 1) {
+				if (!walk(A[keysA[i]], B[keysB[i]], acc)) all = false;
+			}
+			if (all) acc.matched += 1;
+
+			return all;
+		}
+		const keys = [...new Set([...keysA, ...keysB])];
+		let all = keysA.length === keysB.length;
 		for (const key of keys) {
 			const hasA = Object.prototype.hasOwnProperty.call(A, key);
 			const hasB = Object.prototype.hasOwnProperty.call(B, key);

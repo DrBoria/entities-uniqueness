@@ -220,6 +220,37 @@ const decide = (a, b, { signals, weights: rawWeights, thresholds: rawThresholds 
 	// two configs that share a shape, not a copy. The values veto the identical-
 	// shape fast path; the weighted blend below still reports partial similarity.
 	const valuesDiffer = valuesEvidence && !valuesEvidence.identical;
+
+	// A VALUES-ONLY pair: both entities are value carriers (config objects, enums,
+	// literal unions) with no structural identity signal of their own — no shared
+	// property names, no methods, no signature, no heritage. For such a pair the
+	// values ARE the identity: a partial value overlap grades the pair directly
+	// (two configs sharing most of their values are similar even when every key
+	// was renamed; an enum and a union sharing all but one member are similar).
+	// The structural blend would score this near zero because every structural
+	// signal is empty, hiding a real value correspondence.
+	const structuralEvidence = ["properties", "methods", "signature", "inheritance"].some((k) => hasEvidence(sig[k]) && (sig[k].score ?? 0) > 0);
+	if (valuesEvidence && !structuralEvidence) {
+		const vScore = sig.values.score ?? 0;
+		let vTier = null;
+		if (vScore >= thresholds.duplicate) vTier = "duplicate";
+		else if (vScore >= thresholds.extract) vTier = "extract";
+		else if (vScore >= thresholds.similar) vTier = "similar";
+		if (vTier) {
+			return {
+				isDuplicate: vTier === "duplicate",
+				confidence: round(vScore),
+				tier: vTier,
+				reason: `values-only pair: ${a.name} and ${b.name} share ${vScore.toFixed(2)} of their values (no structural identity)`,
+				signals: sig,
+				contributions: { ...zero, values: vScore },
+				thresholds,
+				weights,
+				evidencing: ["values"],
+			};
+		}
+	}
+
 	const identical = valuesDiffer ? null : isIdenticalShape(a, b, sig);
 	if (identical) {
 		return {

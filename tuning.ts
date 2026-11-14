@@ -15,7 +15,9 @@
 const DEFAULT_TUNING = {
 	// decision-maker: signal weights + tier thresholds. `name` is the always-on
 	// part of the signature verdict (not a tab); `values` carries weight 0 because
-	// when it has evidence it decides the pair on its own (see decision-maker).
+	// when it has evidence it decides the pair on its own (see decision-maker):
+	// a FULL match is the renamed-copy fast path, a partial match grades a
+	// values-only pair (two configs / enums) without diluting structural pairs.
 	weights: { properties: 0.25, methods: 0.3, signature: 0.2, values: 0, name: 0.15, inheritance: 0.1 },
 	thresholds: { duplicate: 0.85, extract: 0.5, similar: 0.35 },
 

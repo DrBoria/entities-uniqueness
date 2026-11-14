@@ -58,6 +58,41 @@ const findSchemas = (sourceFile) => {
 // part of the extracted shape.
 const FIELD_SECTION = "fields";
 
+// The TS type a Keystone field builder stores. This is knowledge of the
+// @keystone-6/core field API (the same package the schema builders come from),
+// not an app vocabulary: `text()` is a string column, `integer()` a number,
+// `checkbox()` a boolean, `timestamp()` an ISO string. Mapping the builder to
+// its stored type lets a Keystone list be compared with a plain interface / DTO
+// that describes the same domain shape.
+const FIELD_TYPE = {
+	text: "string",
+	password: "string",
+	timestamp: "string",
+	calendarDay: "string",
+	integer: "number",
+	bigInt: "number",
+	float: "number",
+	decimal: "number",
+	checkbox: "boolean",
+	select: "string",
+	multiselect: "string[]",
+	json: "object",
+	image: "object",
+	file: "object",
+	relationship: "object",
+	virtual: "object",
+};
+
+// The builder callee of a field initializer (`text({ ... })` → "text").
+const fieldBuilderOf = (initializer) => {
+	if (!initializer) return null;
+	const { SyntaxKind } = require("ts-morph");
+	if (initializer.getKind() !== SyntaxKind.CallExpression) return null;
+	const expr = initializer.getExpression();
+	if (!expr || expr.getKind() !== SyntaxKind.Identifier) return null;
+	return expr.getText();
+};
+
 const flattenMembers = (objectLiteralNode) => {
 	const { SyntaxKind } = require("ts-morph");
 	const members = [];
@@ -66,7 +101,14 @@ const flattenMembers = (objectLiteralNode) => {
 		if (name !== FIELD_SECTION) continue;
 		const initializer = member.getInitializer();
 		if (!initializer || initializer.getKind() !== SyntaxKind.ObjectLiteralExpression) continue;
-		for (const inner of objectLiteralMembers(initializer)) members.push({ name: `${FIELD_SECTION}.${inner.name}`, type: inner.type });
+		for (const inner of initializer.getProperties()) {
+			const fieldName = inner.getName();
+			if (!fieldName) continue;
+			const fieldInit = inner.getInitializer ? inner.getInitializer() : null;
+			const builder = fieldBuilderOf(fieldInit);
+			const type = (builder && FIELD_TYPE[builder]) || "object";
+			members.push({ name: fieldName, type });
+		}
 	}
 
 	return members;
