@@ -17,6 +17,7 @@ import { buildTrees } from "./tree-builder";
 import { applyFilters } from "./filter";
 import { suggest } from "./suggester";
 import { renderEntityReport } from "./report";
+import { buildCatalogEnvelope } from "./catalog-record";
 import * as log from "./logger";
 
 const fail = (message) => {
@@ -267,34 +268,7 @@ const run = (config) => {
 
 const writeCatalog = (config, result) => {
 	const catalog = {
-		generatedAt: new Date().toISOString(),
-		root: config.root,
-		weights: config.weights,
-		thresholds: config.thresholds,
-		files: result.files,
-		entityCount: result.entityCount,
-		entities: result.entities.map((e) => ({
-			id: e.id,
-			name: e.name,
-			kind: e.kind,
-			sourceFile: e.sourceFile,
-			line: e.line,
-			endLine: e.endLine,
-			exported: e.exported,
-			framework: e.framework,
-			properties: e.properties,
-			methods: e.methods,
-			extends: e.extends,
-			implements: e.implements,
-			complexity: e.complexity,
-			// The facts the values/inheritance signals and the live rule need.
-			values: e.values,
-			valueTree: e.valueTree,
-			aliasOf: e.aliasOf,
-			typeText: e.typeText,
-			storeModel: e.storeModel,
-			modelName: e.modelName,
-		})),
+		...buildCatalogEnvelope({ root: config.root, weights: config.weights, thresholds: config.thresholds, files: result.files, entities: result.entities }),
 		matches: result.matches.map((m) => ({
 			a: { name: m.a.name, sourceFile: m.a.sourceFile, line: m.a.line, kind: m.a.kind, framework: m.a.framework },
 			b: { name: m.b.name, sourceFile: m.b.sourceFile, line: m.b.line, kind: m.b.kind, framework: m.b.framework },

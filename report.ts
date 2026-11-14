@@ -7,13 +7,9 @@
 // filtered-out pairs. Every pair row lists ALL five signal scores, so a
 // confidence is always explainable from the report alone.
 
-const TIER_ORDER = ["duplicate", "extract", "similar"];
+import { TIER_LABEL } from "./report/errorTypes/vocabulary/labels";
 
-const TIER_LABEL = {
-	duplicate: "High-confidence duplicates (confidence ≥ duplicate threshold)",
-	extract: "Strong extraction candidates (extract ≤ confidence < duplicate)",
-	similar: "Weak similarity (similar ≤ confidence < extract)",
-};
+const TIER_ORDER = ["duplicate", "extract", "similar"];
 
 // How many shared-entity (extract) candidates the report lists before it stops
 // and points at the catalog for the rest.

@@ -6,6 +6,7 @@ import * as path from "node:path";
 import * as crypto from "node:crypto";
 
 import { buildConfig, collectFiles, extractEntities } from "./main";
+import { buildCatalogEnvelope } from "./catalog-record";
 
 // Self-maintained catalog: the rule keeps its own catalog fresh by walking the
 // configured roots on every lint and re-extracting only the files whose
@@ -96,36 +97,7 @@ const refreshCatalog = (config, { budgetMs = 30000 } = {}) => {
 	if (changed > 0 || pruned > 0 || !fs.existsSync(catalogPath)) {
 		try {
 			fs.mkdirSync(path.dirname(catalogPath), { recursive: true });
-			const catalog = {
-				generatedAt: new Date().toISOString(),
-				root,
-				weights: pipeline.tuning.weights,
-				thresholds: pipeline.tuning.thresholds,
-				files: count,
-				entityCount: entities.length,
-				entities: entities.map((e) => ({
-					id: e.id,
-					name: e.name,
-					kind: e.kind,
-					sourceFile: e.sourceFile,
-					line: e.line,
-					endLine: e.endLine,
-					exported: e.exported,
-					framework: e.framework,
-					properties: e.properties,
-					methods: e.methods,
-					extends: e.extends,
-					implements: e.implements,
-					complexity: e.complexity,
-					// The facts the values/inheritance signals and the live rule need.
-					values: e.values,
-					valueTree: e.valueTree,
-					aliasOf: e.aliasOf,
-					typeText: e.typeText,
-					storeModel: e.storeModel,
-					modelName: e.modelName,
-				})),
-			};
+			const catalog = buildCatalogEnvelope({ root, weights: pipeline.tuning.weights, thresholds: pipeline.tuning.thresholds, files: count, entities });
 			fs.writeFileSync(catalogPath, JSON.stringify(catalog, null, 2), "utf8");
 			wrote = true;
 		} catch (err) {
