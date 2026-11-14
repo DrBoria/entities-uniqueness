@@ -78,9 +78,10 @@ describe("CLI", () => {
 			]);
 			const md = readReport(report);
 
-			// The forced fast-path pairs (alias, store-model-copy, identical
-			// shape) are structural facts and survive any threshold.
-			expect(md).toContain("Found 3 high-confidence duplicate pair(s)");
+			// The forced fast-path pairs (store-model-copy, identical shape) are
+			// structural facts and survive any threshold. The alias is an `alias`
+			// verdict (reuse), never a duplicate, so it is not counted here.
+			expect(md).toContain("Found 2 high-confidence duplicate pair(s)");
 		},
 		30_000,
 	);

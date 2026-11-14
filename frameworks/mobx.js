@@ -15,6 +15,7 @@
 const mobx = require("mobx");
 const { SyntaxKind } = require("ts-morph");
 const { objectLiteralMembers } = require("../normalizer/index.js");
+const { buildTree } = require("../normalizer/value-tree.js");
 
 // Store builders: mobx exports whose name is a builder that takes an object
 // literal (makeAutoObservable, makeObservable, observable, observableShallow,
@@ -95,6 +96,7 @@ const normalize = (entities, ctx) => {
 			imports: [...ctx.imports],
 			framework: "mobx",
 			complexity: properties.length,
+			valueTree: buildTree(objectLiteral),
 		});
 	}
 

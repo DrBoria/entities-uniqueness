@@ -1,8 +1,9 @@
 "use strict";
 
-// The INHERITANCE model: the two heritage sets (extends ∪ implements) and the
-// bases they share. `extends` may be a single string or an array; normalize both
-// to a list so a single base is not spread into characters.
+// The INHERITANCE model: the two heritage sets (extends ∪ implements), the bases
+// they share, and the ALIAS fact (`type X = Y`). `extends` may be a single string
+// or an array; normalize both to a list so a single base is not spread into
+// characters. An alias is shown as its own row so the board can draw the link.
 
 const { score } = require("../../../matcher/inheritance");
 
@@ -19,11 +20,15 @@ const build = (left, right) => {
 	const names = [...new Set([...A, ...B])];
 	const rows = names.map((name) => ({ name, left: A.includes(name), right: bSet.has(name), shared: A.includes(name) && bSet.has(name) }));
 
+	// The alias fact, if any: which side is the alias and which is the target.
+	const alias = signal.evidence.alias ?? null;
+
 	return {
 		rows,
 		left: A,
 		right: B,
 		shared: A.filter((x) => bSet.has(x)),
+		alias,
 		score: signal.score,
 		hasEvidence: signal.hasEvidence,
 		evidence: signal.evidence,

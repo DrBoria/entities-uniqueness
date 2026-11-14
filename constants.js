@@ -9,16 +9,18 @@
 
 // ═══ 1. The five comparison signals ═════════════════════════════════════════
 // Entities are compared as OBJECTS/TYPES, not functions: the shape (properties),
-// the behaviour (methods), the call signatures, the name, and the heritage.
+// the behaviour (methods), the call signatures INCLUDING the entity name (a name
+// is part of a signature, not a verdict of its own), the VALUES the entity stands
+// for (deep-compared trees), and the heritage (extends / implements / alias).
 const SIGNAL = Object.freeze({
 	Properties: "properties",
 	Methods: "methods",
 	Signature: "signature",
-	Name: "name",
+	Values: "values",
 	Inheritance: "inheritance",
 });
 
-const SIGNAL_ORDER = Object.freeze([SIGNAL.Properties, SIGNAL.Methods, SIGNAL.Signature, SIGNAL.Name, SIGNAL.Inheritance]);
+const SIGNAL_ORDER = Object.freeze([SIGNAL.Properties, SIGNAL.Methods, SIGNAL.Signature, SIGNAL.Values, SIGNAL.Inheritance]);
 
 // ═══ 2. Tiers (three, unlike utils' two) ════════════════════════════════════
 const TIER = Object.freeze({
@@ -36,10 +38,11 @@ const KIND = Object.freeze({
 	Similar: "similar",
 	Cluster: "cluster",
 	Inclusion: "inclusion",
+	Alias: "alias",
 	Dropped: "dropped",
 });
 
-const KIND_LIST = Object.freeze([KIND.Duplicate, KIND.Extract, KIND.Similar, KIND.Cluster, KIND.Inclusion, KIND.Dropped]);
+const KIND_LIST = Object.freeze([KIND.Duplicate, KIND.Extract, KIND.Similar, KIND.Cluster, KIND.Inclusion, KIND.Alias, KIND.Dropped]);
 
 // ═══ 4. Sentence codes — the only source of any verdict/message ═════════════
 const CODE = Object.freeze({
@@ -48,6 +51,7 @@ const CODE = Object.freeze({
 	Similar: "similar",
 	Cluster: "cluster",
 	Inclusion: "inclusion",
+	Alias: "alias",
 	FilteredOut: "filteredOut",
 	Confidence: "confidence",
 	Headline: "headline",

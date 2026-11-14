@@ -7,8 +7,9 @@ import { percentOf } from "../../../../../evidence";
 import { pairTheme } from "./theme";
 
 // The legend under the tabs: what the colours mean, and the selected signal's
-// score × weight. The name tab also shows the shared name tokens. Reads only the
-// decision and the analysis scores — no ranges, no rows.
+// score × weight. The signature tab also shows the shared entity-name tokens (a
+// name is part of a signature). Reads only the decision and the analysis scores —
+// no ranges, no rows.
 
 const Legend = styled.div`
 	display: flex;
@@ -37,7 +38,7 @@ const percent = (value) => `${Math.round((value ?? 0) * 100)}%`;
 export const PairLegend = ({ mode, pair, decision }) => {
 	const group = signalOf(mode);
 	const signal = (decision?.signals ?? []).find((item) => item.key === mode) ?? null;
-	const name = mode === "name" ? pair.analysis?.name ?? null : null;
+	const name = mode === "signature" ? pair.analysis?.signature?.name ?? null : null;
 
 	return (
 		<Legend>

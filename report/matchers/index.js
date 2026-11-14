@@ -7,8 +7,8 @@
 //
 //   matchers/properties/   { model.js, text.js }
 //   matchers/methods/
-//   matchers/signature/
-//   matchers/name/
+//   matchers/signature/    (also carries the entity name — no separate Name group)
+//   matchers/values/
 //   matchers/inheritance/
 //
 // This registry binds them by the SIGNAL key the engine uses, so the page, the
@@ -25,14 +25,14 @@ const { SIGNAL, SIGNAL_ORDER } = require("../../constants");
 const properties = { key: SIGNAL.Properties, model: require("./properties/model"), text: require("./properties/text") };
 const methods = { key: SIGNAL.Methods, model: require("./methods/model"), text: require("./methods/text") };
 const signature = { key: SIGNAL.Signature, model: require("./signature/model"), text: require("./signature/text") };
-const name = { key: SIGNAL.Name, model: require("./name/model"), text: require("./name/text") };
+const values = { key: SIGNAL.Values, model: require("./values/model"), text: require("./values/text") };
 const inheritance = { key: SIGNAL.Inheritance, model: require("./inheritance/model"), text: require("./inheritance/text") };
 
 const BY_KEY = new Map([
 	[properties.key, properties],
 	[methods.key, methods],
 	[signature.key, signature],
-	[name.key, name],
+	[values.key, values],
 	[inheritance.key, inheritance],
 ]);
 

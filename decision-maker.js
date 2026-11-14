@@ -1,15 +1,21 @@
 "use strict";
 
-// Combines the five signals into a single confidence (0..1) and a tier.
+// Combines the signals into a single confidence (0..1) and a tier.
 //
-// Default weights are the user's formula:
+// Default weights:
 //   confidence = 0.25*properties + 0.30*methods + 0.20*signature
 //              + 0.15*name + 0.10*inheritance
+// `name` is not a verdict of its own — it is the always-on part of the SIGNATURE
+// verdict (a name is part of a signature); the report shows it inside Signature.
+// `values` (deep value comparison) carries weight 0 by default: when it has
+// evidence it DECIDES the pair on its own (values are the strongest identity
+// fact), and the structural signals stand down.
 //
 // Tiers:
 //   duplicate : confidence >= duplicate threshold (default 0.85)
 //   extract   : confidence >= extract threshold   (default 0.50)
 //   similar   : confidence >= similar threshold   (default 0.35)
+//   alias     : one entity is an alias of the other — reuse, NOT duplication
 //   (none)    : below similar — not reported as a candidate
 //
 // `reason` always lists every signal's contribution so a score is explainable.
@@ -20,12 +26,14 @@ const { score: propertyScore } = require("./matcher/properties.js");
 const DEFAULT_WEIGHTS = DEFAULT_TUNING.weights;
 const DEFAULT_THRESHOLDS = DEFAULT_TUNING.thresholds;
 
-// The four *identity* signals (structure of the entity) share a fixed budget of
+// The identity signals (structure of the entity) share a fixed budget of
 // `1 - name_weight` and are re-normalized over whichever of them carry evidence
 // for a given pair. `name` is a separate, always-on bonus (names always exist)
 // that is never re-normalized upward, so a weak name match cannot dominate a pair
 // whose real signal is its structure.
-const IDENTITY_KEYS = ["properties", "methods", "signature", "inheritance"];
+const IDENTITY_KEYS = ["properties", "methods", "signature", "values", "inheritance"];
+// When values carry evidence they are the whole structural verdict: a renamed
+// copy is judged by its values, not diluted by name-only shape overlap.
 const NAME_KEY = "name";
 
 const round = (n) => Math.round(n * 1000) / 1000;
@@ -38,6 +46,7 @@ const resolveWeights = (override) => {
 		properties: o.properties ?? DEFAULT_WEIGHTS.properties,
 		methods: o.methods ?? DEFAULT_WEIGHTS.methods,
 		signature: o.signature ?? DEFAULT_WEIGHTS.signature,
+		values: o.values ?? DEFAULT_WEIGHTS.values,
 		name: o.name ?? DEFAULT_WEIGHTS.name,
 		inheritance: o.inheritance ?? DEFAULT_WEIGHTS.inheritance,
 	};
@@ -62,8 +71,14 @@ const resolveThresholds = (override) => {
 const hasEvidence = (s) => s && s.hasEvidence !== false;
 
 // A type alias whose target is another entity in the project (`type X = Y`)
-// carries no shape of its own — it is a duplicate of `Y` by definition.
-const isAliasDuplicate = (a, b) => (a.aliasOf === b.name || b.aliasOf === a.name);
+// carries no shape of its own — it IS the target. That is reuse (inheritance),
+// not duplication: the pair gets the `alias` verdict, never `duplicate`.
+const aliasPair = (a, b) => {
+	if (a.aliasOf && a.aliasOf === b.name) return { alias: a, target: b };
+	if (b.aliasOf && b.aliasOf === a.name) return { alias: b, target: a };
+
+	return null;
+};
 
 // A hand-written type object whose shape duplicates a framework store model's
 // shape (e.g. `type DocumentData = {...}` vs `t.model("DocumentStore", {...})`).
@@ -138,29 +153,32 @@ const decide = (a, b, { signals, weights: rawWeights, thresholds: rawThresholds 
 	const weights = resolveWeights(rawWeights);
 	const thresholds = resolveThresholds(rawThresholds);
 	const sig = signals || {};
+	const zero = { properties: 0, methods: 0, signature: 0, values: 0, name: 0, inheritance: 0 };
+
+	// An alias is reuse, not duplication: `type X = Y` stands for Y itself. The
+	// verdict is `alias` (shown under Inheritance), never a duplicate.
+	const alias = aliasPair(a, b);
+	if (alias) {
+		return {
+			isDuplicate: false,
+			confidence: 0.9,
+			tier: "alias",
+			reason: `alias: ${alias.alias.name} is an alias of ${alias.target.name} — inheritance, not duplication`,
+			signals: sig,
+			contributions: { ...zero, inheritance: sig.inheritance?.score ?? 1 },
+			thresholds,
+			weights,
+			evidencing: ["inheritance"],
+		};
+	}
 
 	// A closed set of values is the same whoever spells it: an enum, a literal
 	// union, or the two together.
 	const sameValues = sameValueSet(a, b);
-	if (sameValues) return { ...sameValues, signals: sig, contributions: { properties: 0, methods: 0, signature: 0, name: 0, inheritance: 0 }, thresholds, weights, evidencing: [NAME_KEY] };
+	if (sameValues) return { ...sameValues, signals: sig, contributions: { ...zero, values: 1 }, thresholds, weights, evidencing: ["values"] };
 
 	// Fast paths: structural facts that make a pair a duplicate no matter what
 	// the weighted signal blend says.
-	if (isAliasDuplicate(a, b)) {
-		const alias = a.aliasOf === b.name ? a : b;
-		const target = a.aliasOf === b.name ? b : a;
-		return {
-			isDuplicate: true,
-			confidence: 0.9,
-			tier: "duplicate",
-			reason: `alias duplicate: ${alias.name} is an alias of ${target.name}`,
-			signals: sig,
-			contributions: { properties: 0, methods: 0, signature: 0, name: 0, inheritance: 0 },
-			thresholds,
-			weights,
-			evidencing: [NAME_KEY],
-		};
-	}
 	const storeCopy = isStoreModelCopy(a, b);
 	if (storeCopy) {
 		const type = a.kind === "type" ? a : b;
@@ -172,14 +190,37 @@ const decide = (a, b, { signals, weights: rawWeights, thresholds: rawThresholds 
 			tier: "duplicate",
 			reason: `store-model copy: ${type.name} duplicates the shape of store model ${store.name} (overlap ${storeCopy.evidence.overlap.toFixed(2)}, typeAgreement ${storeCopy.evidence.typeAgreement.toFixed(2)})`,
 			signals: sig,
-			contributions: { properties: storeCopy.score, methods: 0, signature: 0, name: 0, inheritance: 0 },
+			contributions: { ...zero, properties: storeCopy.score },
 			thresholds,
 			weights,
 			evidencing: ["properties", NAME_KEY],
 		};
 	}
 
-	const identical = isIdenticalShape(a, b, sig);
+	// A full value-tree match under different names is a renamed copy: the values
+	// decide, the shape signals stand down.
+	const valuesEvidence = sig.values && sig.values.hasEvidence !== false && sig.values.evidence ? sig.values.evidence : null;
+	const valuesIdentical = valuesEvidence && valuesEvidence.identical;
+	if (valuesIdentical) {
+		return {
+			isDuplicate: true,
+			confidence: 0.93,
+			tier: "duplicate",
+			reason: `renamed copy: ${a.name} and ${b.name} hold identical values under different names`,
+			signals: sig,
+			contributions: { ...zero, values: 1 },
+			thresholds,
+			weights,
+			evidencing: ["values"],
+		};
+	}
+
+	// When the two entities carry comparable values that DIFFER, a shape-only
+	// match is not a duplicate: same field names/types with different contents is
+	// two configs that share a shape, not a copy. The values veto the identical-
+	// shape fast path; the weighted blend below still reports partial similarity.
+	const valuesDiffer = valuesEvidence && !valuesEvidence.identical;
+	const identical = valuesDiffer ? null : isIdenticalShape(a, b, sig);
 	if (identical) {
 		return {
 			isDuplicate: true,
@@ -187,7 +228,7 @@ const decide = (a, b, { signals, weights: rawWeights, thresholds: rawThresholds 
 			tier: identical.tier,
 			reason: identical.reason,
 			signals: sig,
-			contributions: { properties: sig.properties.score, methods: 0, signature: 0, name: 0, inheritance: 0 },
+			contributions: { ...zero, properties: sig.properties.score },
 			thresholds,
 			weights,
 			evidencing: ["properties"],
@@ -196,6 +237,9 @@ const decide = (a, b, { signals, weights: rawWeights, thresholds: rawThresholds 
 
 	// The identity budget is the full weight the identity signals carry by default;
 	// it is re-distributed over whichever of them have evidence for this pair.
+	// `values` participates only when it has evidence; its default weight is 0, so
+	// a partial value match informs the explanation without moving the verdict —
+	// a FULL value match is the renamed-copy fast path above.
 	const identityBudget = IDENTITY_KEYS.reduce((sum, k) => sum + weights[k], 0);
 	const evidencing = IDENTITY_KEYS.filter((k) => hasEvidence(sig[k]));
 	const evidencingWeight = evidencing.reduce((sum, k) => sum + weights[k], 0);
@@ -218,10 +262,15 @@ const decide = (a, b, { signals, weights: rawWeights, thresholds: rawThresholds 
 	else if (confidence >= thresholds.extract) tier = "extract";
 	else if (confidence >= thresholds.similar) tier = "similar";
 
+	// Comparable values that DIFFER veto a duplicate: same field names/types with
+	// different contents is two entities that share a shape, not a copy. The pair
+	// may still be an extraction candidate / similar, but never a duplicate.
+	if (valuesDiffer && tier === "duplicate") tier = "extract";
+
 	const reason =
 		`confidence ${confidence.toFixed(2)} ` +
 		`(properties ${(sig.properties?.score ?? 0).toFixed(2)}, methods ${(sig.methods?.score ?? 0).toFixed(2)}, ` +
-		`signature ${(sig.signature?.score ?? 0).toFixed(2)}, name ${(sig.name?.score ?? 0).toFixed(2)}, inheritance ${(sig.inheritance?.score ?? 0).toFixed(2)})` +
+		`signature ${(sig.signature?.score ?? 0).toFixed(2)}, values ${(sig.values?.score ?? 0).toFixed(2)}, name ${(sig.name?.score ?? 0).toFixed(2)}, inheritance ${(sig.inheritance?.score ?? 0).toFixed(2)})` +
 		(evidencing.length < IDENTITY_KEYS.length ? ` [evidence: ${[...evidencing, NAME_KEY].join(", ")}]` : "");
 
 	return {

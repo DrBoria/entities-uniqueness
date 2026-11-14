@@ -13,8 +13,10 @@
 // overrides keep the rest of the defaults.
 
 const DEFAULT_TUNING = {
-	// decision-maker: signal weights + tier thresholds
-	weights: { properties: 0.25, methods: 0.3, signature: 0.2, name: 0.15, inheritance: 0.1 },
+	// decision-maker: signal weights + tier thresholds. `name` is the always-on
+	// part of the signature verdict (not a tab); `values` carries weight 0 because
+	// when it has evidence it decides the pair on its own (see decision-maker).
+	weights: { properties: 0.25, methods: 0.3, signature: 0.2, values: 0, name: 0.15, inheritance: 0.1 },
 	thresholds: { duplicate: 0.85, extract: 0.5, similar: 0.35 },
 
 	// candidate matcher (raw geometry, pre-decision)
@@ -52,6 +54,10 @@ const DEFAULT_TUNING = {
 	// signature matcher
 	signature: { singleMethodDiscount: 0.3 },
 
+	// values matcher: a value tree smaller than this many nodes is not
+	// discriminating evidence (a lone `{}` or scalar is not a "same values" fact).
+	values: { minTreeNodes: 3 },
+
 	// clusterer
 	cluster: { linkFloor: 0.7 },
 
@@ -83,6 +89,7 @@ const resolveTuning = (override) => {
 		methods: mergeSection(DEFAULT_TUNING.methods, o.methods),
 		name: mergeSection(DEFAULT_TUNING.name, o.name),
 		signature: mergeSection(DEFAULT_TUNING.signature, o.signature),
+		values: mergeSection(DEFAULT_TUNING.values, o.values),
 		cluster: mergeSection(DEFAULT_TUNING.cluster, o.cluster),
 		suggester: mergeSection(DEFAULT_TUNING.suggester, o.suggester),
 		filters: mergeSection(DEFAULT_TUNING.filters, o.filters),

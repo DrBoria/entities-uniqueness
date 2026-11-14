@@ -24,7 +24,8 @@ const { KIND } = require("../../../constants");
 
 // A filtered-out pair is informational: the decision panel explains why, and a
 // side-by-side of rows a filter has already dismissed would only inflate the page.
-const DIFFABLE = new Set([KIND.Duplicate, KIND.Extract, KIND.Similar]);
+// An alias IS shown side-by-side: the Inheritance tab draws the alias link.
+const DIFFABLE = new Set([KIND.Duplicate, KIND.Extract, KIND.Similar, KIND.Alias]);
 
 const abs = (repoRoot, relPath) => (path.isAbsolute(relPath) ? relPath : path.resolve(repoRoot, relPath));
 
@@ -115,6 +116,7 @@ const collectOverviewData = ({ comp, repoRoot, config = {}, catalogPath = null, 
 			extract: withPair.filter((f) => f.kind === KIND.Extract).length,
 			similar: withPair.filter((f) => f.kind === KIND.Similar).length,
 			clusters: withPair.filter((f) => f.kind === KIND.Cluster).length,
+			aliases: withPair.filter((f) => f.kind === KIND.Alias).length,
 			dropped: withPair.filter((f) => f.kind === KIND.Dropped).length,
 			pairs: pairs.length,
 			groups: groups.length,

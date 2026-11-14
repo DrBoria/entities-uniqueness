@@ -287,6 +287,13 @@ const writeCatalog = (config, result) => {
 			extends: e.extends,
 			implements: e.implements,
 			complexity: e.complexity,
+			// The facts the values/inheritance signals and the live rule need.
+			values: e.values,
+			valueTree: e.valueTree,
+			aliasOf: e.aliasOf,
+			typeText: e.typeText,
+			storeModel: e.storeModel,
+			modelName: e.modelName,
 		})),
 		matches: result.matches.map((m) => ({
 			a: { name: m.a.name, sourceFile: m.a.sourceFile, line: m.a.line, kind: m.a.kind, framework: m.a.framework },

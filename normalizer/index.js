@@ -16,6 +16,7 @@ const { Project, SyntaxKind, ts } = require("ts-morph");
 const { canonicalType } = require("./types.js");
 const { extractEnum } = require("./enums.js");
 const { unionValues } = require("./values.js");
+const { buildTree } = require("./value-tree.js");
 
 // ── The program ─────────────────────────────────────────────────────────────
 //
@@ -162,19 +163,22 @@ const assertionOf = (initializer) => {
 	return { node: call(node, "getExpression") ?? initializer, form, type, isConst: type === "const" };
 };
 
-const objectLiteralMembers = (objectLiteralNode) => {
+const objectLiteralMembers = (objectLiteralNode, sourceFile) => {
 	const members = [];
+	// The declaration line of a member, when the source file is known. The view
+	// anchors a highlight here instead of on an earlier mention of the name.
+	const memberLine = (member) => (sourceFile ? { line: lineOf(member, sourceFile) } : {});
 	for (const member of call(objectLiteralNode, "getProperties") || []) {
 		const name = call(member, "getName");
 		if (!name) continue;
 
 		if (call(member, "isMethodDeclaration")) {
-			members.push({ name, type: "function" });
+			members.push({ name, type: "function", ...memberLine(member) });
 			continue;
 		}
 
 		if (call(member, "isShorthandPropertyAssignment") || call(member, "isSpreadAssignment")) {
-			members.push({ name, type: "object" });
+			members.push({ name, type: "object", ...memberLine(member) });
 			continue;
 		}
 
@@ -185,7 +189,7 @@ const objectLiteralMembers = (objectLiteralNode) => {
 			// `Record<number, X>` maps are keyed by numeric id — the keys are
 			// data, not shape. Only string-keyed records count as properties.
 			if (/^Record<\s*number\b/.test(t)) continue;
-			members.push({ name, type: t });
+			members.push({ name, type: t, ...memberLine(member) });
 			continue;
 		}
 
@@ -197,23 +201,23 @@ const objectLiteralMembers = (objectLiteralNode) => {
 			if (body && nodeKind(body) === SyntaxKind.ParenthesizedExpression) body = call(body, "getExpression");
 			const bodyKind = body ? nodeKind(body) : undefined;
 			if (body && bodyKind === SyntaxKind.ObjectLiteralExpression) {
-				for (const inner of objectLiteralMembers(body)) members.push(inner);
+				for (const inner of objectLiteralMembers(body, sourceFile)) members.push(inner);
 				continue;
 			}
 			const statements = call(initializer, "getStatements") || [];
 			const last = statements[statements.length - 1];
 			const ret = last && call(last, "getExpression") ? call(last, "getExpression") : null;
 			if (ret && nodeKind(ret) === SyntaxKind.ObjectLiteralExpression) {
-				for (const inner of objectLiteralMembers(ret)) members.push(inner);
+				for (const inner of objectLiteralMembers(ret, sourceFile)) members.push(inner);
 				continue;
 			}
-			members.push({ name, type: "function" });
+			members.push({ name, type: "function", ...memberLine(member) });
 			continue;
 		}
 
 		const t = inferType(initializer);
 		if (/^Record<\s*number\b/.test(t)) continue;
-		members.push({ name, type: t });
+		members.push({ name, type: t, ...memberLine(member) });
 	}
 	return members;
 };
@@ -253,6 +257,9 @@ const extractClassLike = (node, { name, exported, sourceFile, isInterface }) => 
 			properties.push({
 				name: pName,
 				type,
+				// The declaration line: the view anchors the highlight here, not on
+				// an earlier mention of the name in a doc comment above it.
+				line: lineOf(member, sourceFile),
 				// `#value` is private to the class; `static`/`readonly` say what it is.
 				...(String(pName).startsWith("#") ? { private: true } : {}),
 				...(words.includes("static") ? { static: true } : {}),
@@ -265,7 +272,7 @@ const extractClassLike = (node, { name, exported, sourceFile, isInterface }) => 
 			if (!mName) continue;
 			const params = (call(member, "getParameters") || []).map((p) => call(p, "getName") || "");
 			const typeNode = call(member, "getReturnType");
-			methods.push({ name: mName, params, returnType: typeNode ? canon(typeNode, "void") : "void" });
+			methods.push({ name: mName, params, returnType: typeNode ? canon(typeNode, "void") : "void", line: lineOf(member, sourceFile) });
 			continue;
 		}
 		// Constructor parameter properties (`constructor(private x: string)`)
@@ -373,13 +380,13 @@ const extractTypeAlias = (node, { name, exported, sourceFile }) => {
 				// `Record<number, X>` maps are keyed by numeric id — the keys
 				// are data, not shape (mirrors objectLiteralMembers).
 				if (/^Record<\s*number\b/.test(t)) continue;
-				properties.push({ name: pName, type: t });
+				properties.push({ name: pName, type: t, line: lineOf(member, sourceFile) });
 			} else if (mk === SyntaxKind.MethodSignature) {
 				const mName = call(member, "getName");
 				if (!mName) continue;
 				const params = (call(member, "getParameters") || []).map((p) => call(p, "getName") || "");
 				const rtNode = call(member, "getReturnType");
-				methods.push({ name: mName, params, returnType: rtNode ? canonicalType(rtNode) || "void" : "void" });
+				methods.push({ name: mName, params, returnType: rtNode ? canonicalType(rtNode) || "void" : "void", line: lineOf(member, sourceFile) });
 			}
 		}
 	} else if (k === SyntaxKind.TypeReference && (call(typeNode, "getTypeArguments") || []).length === 0) {
@@ -417,7 +424,7 @@ const extractTypeAlias = (node, { name, exported, sourceFile }) => {
 };
 
 const extractObject = (name, objectNode, { exported, sourceFile, imports }) => {
-	const properties = objectLiteralMembers(objectNode);
+	const properties = objectLiteralMembers(objectNode, sourceFile);
 	const line = lineOf(objectNode, sourceFile);
 	const endLine = lineOf(objectNode, sourceFile, true);
 
@@ -438,6 +445,9 @@ const extractObject = (name, objectNode, { exported, sourceFile, imports }) => {
 		imports: [...imports],
 		framework: null,
 		complexity: properties.length,
+		// The VALUES the literal stands for: a renamed copy of the same tree is a
+		// duplicate even when the names differ (see matcher/values.js).
+		valueTree: buildTree(objectNode),
 	};
 };
 

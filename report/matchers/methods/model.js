@@ -27,8 +27,8 @@ const build = (left, right, opts = {}) => {
 
 		return {
 			name,
-			left: a ? { name, params: a.params ?? [], returnType: a.returnType ?? "" } : null,
-			right: b ? { name, params: b.params ?? [], returnType: b.returnType ?? "" } : null,
+			left: a ? { name, params: a.params ?? [], returnType: a.returnType ?? "", ...(a.line ? { line: a.line } : {}) } : null,
+			right: b ? { name, params: b.params ?? [], returnType: b.returnType ?? "", ...(b.line ? { line: b.line } : {}) } : null,
 			shared,
 			same: shared,
 		};

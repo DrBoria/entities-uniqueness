@@ -25,7 +25,7 @@ const signalCell = (d) => {
 	// shows "–" rather than its neutral 1.00, which would look like a real match.
 	const fmt = (k) => (s[k] && s[k].hasEvidence !== false ? s[k].score.toFixed(2) : "–");
 
-	return `props ${fmt("properties")} · methods ${fmt("methods")} · sig ${fmt("signature")} · name ${fmt("name")} · inh ${fmt("inheritance")}`;
+	return `props ${fmt("properties")} · methods ${fmt("methods")} · sig ${fmt("signature")} · vals ${fmt("values")} · inh ${fmt("inheritance")}`;
 };
 
 const renderHeader = (r) => {

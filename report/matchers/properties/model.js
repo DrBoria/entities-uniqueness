@@ -32,8 +32,8 @@ const build = (left, right, opts = {}) => {
 
 		return {
 			name,
-			left: a ? { name, type: a.type ?? "", readonly: !!a.readonly, optional: !!a.optional } : null,
-			right: b ? { name, type: b.type ?? "", readonly: !!b.readonly, optional: !!b.optional } : null,
+			left: a ? { name, type: a.type ?? "", readonly: !!a.readonly, optional: !!a.optional, ...(a.line ? { line: a.line } : {}) } : null,
+			right: b ? { name, type: b.type ?? "", readonly: !!b.readonly, optional: !!b.optional, ...(b.line ? { line: b.line } : {}) } : null,
 			shared,
 			same: shared && sameType,
 		};

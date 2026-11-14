@@ -36,13 +36,22 @@ const explain = (decision) => {
 	const totalWeight = SIGNALS.reduce((sum, s) => sum + (decision.weights?.[s.key] ?? 0), 0) || 1;
 	const evidencing = new Set(decision.evidencing ?? SIGNALS.map((s) => s.key));
 
+	// The engine keeps `name` as an always-on bonus that is part of the SIGNATURE
+	// verdict (a name is part of a signature). The report has no Name group, so the
+	// name's weight and share of the verdict are folded into the Signature row.
+	const nameWeight = decision.weights?.name ?? 0;
+	const nameContribution = contributionOf(decision, "name", totalWeight);
+
 	const rows = SIGNALS.map((signal) => {
 		const sig = decision.signals?.[signal.key] ?? {};
 		const score = sig.score ?? 0;
-		const weight = decision.weights?.[signal.key] ?? 0;
+		const isSignature = signal.key === "signature";
+		const weight = (decision.weights?.[signal.key] ?? 0) + (isSignature ? nameWeight : 0);
 		// A signal with no evidence for the pair is OFF: its weight was redistributed,
-		// so it neither supports nor refutes the verdict. `name` is always on.
-		const applied = sig.hasEvidence !== false && (signal.key === "name" || evidencing.has(signal.key));
+		// so it neither supports nor refutes the verdict. `signature` is always on —
+		// it carries the entity name, which always exists.
+		const applied = sig.hasEvidence !== false && (isSignature || evidencing.has(signal.key));
+		const contribution = contributionOf(decision, signal.key, totalWeight) + (isSignature ? nameContribution : 0);
 
 		return {
 			key: signal.key,
@@ -52,7 +61,7 @@ const explain = (decision) => {
 			what: signal.what,
 			score,
 			weight,
-			contribution: contributionOf(decision, signal.key, totalWeight),
+			contribution,
 			applied,
 			evidence: chips(sig.evidence),
 		};

@@ -27,6 +27,7 @@ const CODES = {
 	[CODE.Similar]: { kind: KIND.Similar, sentence: (p) => fill(PHRASES.similar, p) },
 	[CODE.Cluster]: { kind: KIND.Cluster, sentence: (p) => fill(PHRASES.cluster, p) },
 	[CODE.Inclusion]: { kind: KIND.Inclusion, sentence: (p) => fill(PHRASES.inclusion, p) },
+	[CODE.Alias]: { kind: KIND.Alias, sentence: (p) => fill(PHRASES.alias, p) },
 	[CODE.FilteredOut]: { kind: KIND.Dropped, sentence: (p) => fill(PHRASES.filtered, p) },
 
 	// ── Explanations ────────────────────────────────────────────────────────

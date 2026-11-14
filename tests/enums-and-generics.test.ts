@@ -38,9 +38,11 @@ describe("generic entities — a type parameter is a hole, not a name", () => {
 		const box = byName("Box");
 		const crate = byName("Crate");
 
-		expect(box.properties).toEqual([{ name: "value", type: "§" }]);
-		expect(crate.properties).toEqual(box.properties);
-		expect(crate.methods).toEqual(box.methods);
+		expect(box.properties).toEqual([{ name: "value", type: "§", line: 14 }]);
+		// The SHAPE (name + canonical type) is identical; the declaration line is a
+		// per-entity fact, so it is compared separately, not as part of the shape.
+		expect(crate.properties.map(({ name, type }) => ({ name, type }))).toEqual(box.properties.map(({ name, type }) => ({ name, type })));
+		expect(crate.methods.map(({ name, params, returnType }) => ({ name, params, returnType }))).toEqual(box.methods.map(({ name, params, returnType }) => ({ name, params, returnType })));
 	});
 
 	it("a concrete type argument is NOT a hole", () => {

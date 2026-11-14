@@ -1,10 +1,13 @@
 "use strict";
 
-// The SIGNATURE model: for methods the two entities share by name, do the
-// parameter lists and return types agree? One row per shared method, `same`
-// when the canonical signature key matches.
+// The SIGNATURE model: the entity NAME plus, for methods the two entities share
+// by name, whether the parameter lists and return types agree. A name is part of
+// a signature, so the entity names are the first row here (there is no separate
+// Name group). One row per shared method, `same` when the canonical signature key
+// matches.
 
 const { score, sigKey } = require("../../../matcher/signature");
+const { score: nameScore, tokenize } = require("../../../matcher/name");
 
 const byName = (methods) => {
 	const map = new Map();
@@ -25,17 +28,32 @@ const build = (left, right, opts = {}) => {
 		const kb = sigKey(b);
 		rows.push({
 			name,
-			left: { key: ka, params: a.params ?? [], returnType: a.returnType ?? "" },
-			right: { key: kb, params: b.params ?? [], returnType: b.returnType ?? "" },
+			left: { key: ka, params: a.params ?? [], returnType: a.returnType ?? "", ...(a.line ? { line: a.line } : {}) },
+			right: { key: kb, params: b.params ?? [], returnType: b.returnType ?? "", ...(b.line ? { line: b.line } : {}) },
 			same: ka === kb,
 		});
 	}
 	const signal = score(left, right, opts);
 
+	// The entity-name comparison (tokens + edit distance) lives inside Signature.
+	const name = nameScore(left, right, opts);
+	const aTokens = tokenize(left.name ?? "");
+	const bTokens = tokenize(right.name ?? "");
+	const bSet = new Set(bTokens);
+	const nameModel = {
+		left: { name: left.name ?? "", tokens: aTokens },
+		right: { name: right.name ?? "", tokens: bTokens },
+		common: aTokens.filter((t) => bSet.has(t)),
+		score: name.score,
+		hasEvidence: name.hasEvidence,
+		evidence: name.evidence,
+	};
+
 	return {
 		rows,
 		sharedCount: rows.length,
 		matchingCount: rows.filter((r) => r.same).length,
+		name: nameModel,
 		score: signal.score,
 		hasEvidence: signal.hasEvidence,
 		evidence: signal.evidence,

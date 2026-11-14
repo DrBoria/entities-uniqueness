@@ -18,6 +18,7 @@ const PHRASES = {
 	similar: "{left} looks like {right}, but not closely enough to call it a copy — {confidence}.",
 	cluster: "{count} entities describe the same shape across files. Nothing shared exists yet, so the fix is one shared type — weakest link {confidence}.",
 	inclusion: "{child} is contained in {parent} — {confidence}. The smaller shape can reuse the larger one.",
+	alias: "{left} is an alias of {right} — inheritance, not duplication. The shape is already shared.",
 
 	// ── Why it matched ──────────────────────────────────────────────────────
 	headline: "{confidence} confidence — {top} contributes {share} of it.",
@@ -27,9 +28,11 @@ const PHRASES = {
 
 	// ── Fast-path explanations (entities has no vetoes) ─────────────────────
 	fastValueSet: "Both are the same set of literal values — treated as a duplicate.",
-	fastAlias: "{left} is an alias of {right} — treated as a duplicate.",
+	fastRenamedCopy: "Both hold identical values under different names — a renamed copy, treated as a duplicate.",
+	fastAlias: "{left} is an alias of {right} — reuse (inheritance), not a duplicate.",
 	fastStoreCopy: "{left} mirrors the store model {right} — a generated copy of the same shape.",
 	fastIdentical: "The two shapes are identical (every shared property agrees in type) — treated as a duplicate.",
+	valuesDiffer: "The two hold different values, so a shared shape alone is not a duplicate.",
 	vetoFloor: "Confidence {confidence} is under the {threshold} floor for the tier.",
 
 	// ── The number itself ───────────────────────────────────────────────────

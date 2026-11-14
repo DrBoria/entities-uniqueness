@@ -5,7 +5,9 @@
 //
 // This rewards "same shape" over "same name" — two entities sharing a method
 // `save(id: string): Promise<void>` score higher than sharing `save()` with
-// different signatures.
+// different signatures. The entity NAME is compared too, but as part of the
+// signature verdict in the report (see report/matchers/signature) — the engine
+// keeps it as the always-on `name` bonus in the decision-maker, not a tab.
 
 const { DEFAULT_TUNING } = require("../tuning");
 

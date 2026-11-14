@@ -71,18 +71,23 @@ describe("entities pipeline", () => {
 		expect(dup.tier).toBe("duplicate");
 	});
 
-	it("clusters three similar entities and suggests the extraction they need", () => {
-		// The fixtures that carry a three-member cluster are the document models:
-		// they overlap on properties AND methods, so the cluster is transitive (a
-		// third entity joins a pair) — which a single pair cannot show.
+	it("clusters similar entities and suggests the extraction they need", () => {
+		// The document data type and the store model it copies form a real
+		// duplicate cluster. (The alias PrettyModelData is NOT a duplicate — it is
+		// reuse, reported as an `alias` verdict — so it does not join the cluster.)
 		const config = buildConfig();
 		const result = main.run(config);
 
 		const cluster = result.clusters.find(
-			(c) => c.members.some((m) => m.name === "DocumentData") && c.members.some((m) => m.name === "PrettyModelData"),
+			(c) => c.members.some((m) => m.name === "DocumentData") && c.members.some((m) => m.name === "DocumentStoreModel"),
 		);
 		expect(cluster).toBeTruthy();
-		expect(cluster.members.length).toBeGreaterThanOrEqual(3);
+		expect(cluster.members.length).toBeGreaterThanOrEqual(2);
+
+		// The alias is reported, but as an alias — never as a duplicate.
+		const alias = result.matches.find((m) => pairNames(m) === "DocumentData|PrettyModelData");
+		expect(alias).toBeTruthy();
+		expect(alias.tier).toBe("alias");
 
 		// A cluster of exact duplicates needs no extraction advice; the advice the
 		// run does produce is for the property-only pairs, so both sides of the
@@ -90,6 +95,18 @@ describe("entities pipeline", () => {
 		const sharedType = result.suggestions.find((s) => s.type === "shared-type");
 		expect(sharedType).toBeTruthy();
 		expect(sharedType.entities.length).toBeGreaterThanOrEqual(2);
+	});
+
+	it("grows a cluster transitively when a third entity links to a pair", () => {
+		// Transitivity is the clusterer's job: A–B and B–C are strong links, so C
+		// joins the A–B cluster even though A–C was never compared directly.
+		const { clusterMatches } = require("../matcher/cluster.js");
+		const ent = (name) => ({ id: `x:${name}`, name });
+		const link = (a, b, confidence) => ({ a: ent(a), b: ent(b), tier: "duplicate", decision: { confidence } });
+		const clusters = clusterMatches([link("A", "B", 0.9), link("B", "C", 0.88)]);
+
+		expect(clusters).toHaveLength(1);
+		expect(clusters[0].members.map((m) => m.name).sort()).toEqual(["A", "B", "C"]);
 	});
 
 	it("suggests a shared type for property-only profile overlap", () => {
@@ -263,13 +280,12 @@ describe("entities pipeline", () => {
 		const config = buildConfig({ thresholds: { duplicate: 0.99, extract: 0.98, similar: 0.97 } });
 		const result = main.run(config);
 
-		// Only the forced (fast-path) duplicates survive a 0.99 bar: alias,
-		// store-model-copy, and identical-shape pairs are structural facts, not
-		// heuristic scores.
+		// Only the forced (fast-path) duplicates survive a 0.99 bar: store-model-copy
+		// and identical-shape pairs are structural facts, not heuristic scores. The
+		// alias is an `alias` verdict (reuse), never a duplicate, at any threshold.
 		const dups = result.matches.filter((m) => m.tier === "duplicate");
 		expect(dups.map(pairNames).sort()).toEqual([
 			"DocumentData|DocumentStoreModel",
-			"DocumentData|PrettyModelData",
 			"TokenQuery|TokenQueryCopy",
 		]);
 	});

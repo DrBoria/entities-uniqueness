@@ -64,15 +64,24 @@ const finding = ({ id, code, params, left, right = null, fix, decision = null, e
 	};
 };
 
-// The code for a tier: duplicate / extract / similar each have their own verdict.
-const codeOfTier = (tier) => (tier === TIER.Duplicate ? CODE.Duplicate : tier === TIER.Extract ? CODE.Extract : CODE.Similar);
+// The code for a tier: duplicate / extract / similar / alias each have their own
+// verdict. An alias is reuse, not duplication, so it never maps to Duplicate.
+const codeOfTier = (tier) =>
+	tier === TIER.Duplicate ? CODE.Duplicate : tier === TIER.Extract ? CODE.Extract : tier === "alias" ? CODE.Alias : CODE.Similar;
 
 const pairFinding = (match) => {
 	const decision = explain(match.decision);
 	const code = codeOfTier(match.tier ?? match.decision.tier);
 	const left = place(match.a);
 	const right = place(match.b);
-	const fix = code === CODE.Duplicate ? asks.useShared(left, right) : code === CODE.Extract ? asks.extractType(left, right, match.decision.shared ?? []) : asks.none();
+	const fix =
+		code === CODE.Duplicate
+			? asks.useShared(left, right)
+			: code === CODE.Extract
+				? asks.extractType(left, right, match.decision.shared ?? [])
+				: code === CODE.Alias
+					? asks.none()
+					: asks.none();
 
 	return finding({
 		id: `${code}:${left.path}#${left.name}=>${right.path}#${right.name}`,
