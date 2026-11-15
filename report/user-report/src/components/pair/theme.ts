@@ -25,6 +25,10 @@ const A_HOT = 0.16;
 // "this range is the one the lane is about" was told in the same colour as "this row
 // is on the lane", which is no information at all.
 const A_MARK = 0.18;
+// The occurrence mark is a DIFFERENT hue from the red band: amber on red, never red on
+// red. A red mark over a red wash vanished into it ("don't do red on red"); a warm amber
+// highlighter reads as "this exact word" on top of the cool red "this row is on a lane".
+const MARK = "255, 193, 94";
 
 const rgba = (rgb, alpha) => `rgba(${rgb}, ${alpha})`;
 
@@ -46,12 +50,13 @@ export const pairTheme = {
 	// the wash is the row, the band is the road between the two rows.
 	band: { same: `rgb(${SAME})`, diff: `rgb(${DIFF})` },
 	wash: { same: rgba(SAME, A), diff: rgba(DIFF, A_DIFF), hot: rgba(SAME, A_HOT), hotDiff: rgba(DIFF, 0.12) },
-	// The exact occurrence a lane is about: a stronger wash of the same hue, painted
-	// BEHIND the glyphs so the token colour survives.
-	mark: { same: rgba(SAME, A_MARK), diff: rgba(DIFF, 0.16) },
-	// The ribbon itself: darker than the wash over a row, so a lane reads as a
-	// path and the code under it stays legible.
-	ribbon: { same: rgba(SAME, 0.3), diff: rgba(DIFF, 0.18) },
+	// The exact occurrence a lane is about: an AMBER highlighter over the red band, painted
+	// BEHIND the glyphs so the token colour survives. Never red on red.
+	mark: { same: rgba(MARK, 0.26), diff: rgba(DIFF, 0.16) },
+	// The ribbon itself: a visible ROAD through the corridor, stronger than the row wash
+	// so the path between columns reads on a dark surface (the whisper-alpha wash made
+	// every ribbon invisible).
+	ribbon: { same: rgba(SAME, 0.42), diff: rgba(DIFF, 0.3) },
 	token: TOKEN,
 	chrome: {
 		panel: theme.color.panel,

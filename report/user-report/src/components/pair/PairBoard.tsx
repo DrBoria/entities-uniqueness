@@ -11,7 +11,7 @@ import { tokenizerFor } from "../../domain/syntax";
 // (domain/board.js); this only hands it the columns, the connections, the colours
 // and a tokenizer. It draws nothing itself — no range, no ribbon, no hover math.
 
-export const PairBoard = ({ board, corridor, reveal }) => {
+export const PairBoard = ({ board, corridor, reveal, onReveal }) => {
 	if (!board) return null;
 	const tokenize = (text, column) => tokenizerFor(board.columns[Number(column)]?.path)(text);
 
@@ -26,6 +26,7 @@ export const PairBoard = ({ board, corridor, reveal }) => {
 			reveal={reveal}
 			fit="scroll"
 			tokenize={tokenize}
+			controller={onReveal === undefined ? undefined : { onReveal }}
 			options={{ boardHeight: "68vh", fullMount: 120 }}
 		/>
 	);

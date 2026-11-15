@@ -99,7 +99,7 @@ export const PairView = ({ pair, decision }) => {
 					</React.Fragment>
 				))}
 			</Head>
-			<PairBoard board={board} corridor={gutter} reveal={expanded} />
+			<PairBoard board={board} corridor={gutter} reveal={expanded} onReveal={setExpanded} />
 			<Detail pair={pair} />
 		</Frame>
 	);

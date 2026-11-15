@@ -8,8 +8,8 @@
 import { pairTheme } from "../components/pair/theme";
 
 export const tones = {
-	same: { fill: pairTheme.wash.same, line: pairTheme.wash.same, hot: pairTheme.wash.hot },
-	differs: { fill: pairTheme.wash.diff, line: pairTheme.wash.diff, hot: pairTheme.wash.hotDiff },
+        same: { fill: pairTheme.wash.same, line: pairTheme.ribbon.same, hot: pairTheme.wash.hot },
+        differs: { fill: pairTheme.wash.diff, line: pairTheme.ribbon.diff, hot: pairTheme.wash.hotDiff },
 };
 
 // The theme code-diff draws its chrome with (paper, ink, ribbons, fonts).
