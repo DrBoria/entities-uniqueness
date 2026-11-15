@@ -24,9 +24,12 @@ export const PairBoard = ({ board, corridor, reveal, onReveal }) => {
 			blocks={board.blocks}
 			corridors={[corridor, undefined]}
 			reveal={reveal}
+			sync={[{ columns: ["0", "1"], axis: "xy" }]}
 			fit="scroll"
 			tokenize={tokenize}
-			controller={onReveal === undefined ? undefined : { onReveal }}
+			// The owner's chip OWNS reveal: the board shows exactly this state and reports
+			// fold-button toggles back, so "only blocks / show all" always recomputes.
+			controller={onReveal === undefined ? undefined : { reveal, onReveal }}
 			options={{ boardHeight: "68vh", fullMount: 120 }}
 		/>
 	);
