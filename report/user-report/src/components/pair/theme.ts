@@ -55,8 +55,10 @@ export const pairTheme = {
 	mark: { same: rgba(MARK, 0.26), diff: rgba(DIFF, 0.16) },
 	// The ribbon itself: a visible ROAD through the corridor, stronger than the row wash
 	// so the path between columns reads on a dark surface (the whisper-alpha wash made
-	// every ribbon invisible).
-	ribbon: { same: rgba(SAME, 0.42), diff: rgba(DIFF, 0.3) },
+	// every ribbon invisible). ONE calm shade from end to end — never a slab. `hot` is
+	// the same hue held a little stronger for the lane under the pointer, painted ONCE
+	// (the board never lays the road twice, which stacked alpha into a wild bright bend).
+	ribbon: { same: rgba(SAME, 0.3), diff: rgba(DIFF, 0.24), hot: rgba(SAME, 0.44), hotDiff: rgba(DIFF, 0.36) },
 	token: TOKEN,
 	chrome: {
 		panel: theme.color.panel,

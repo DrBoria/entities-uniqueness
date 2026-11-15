@@ -99,7 +99,10 @@ export const PairView = ({ pair, decision }) => {
 					</React.Fragment>
 				))}
 			</Head>
-			<PairBoard board={board} corridor={gutter} reveal={expanded} onReveal={setExpanded} />
+			{/* A tab is a DIFFERENT board. Keying by mode remounts it, so the new board
+			    measures its own rows from a clean state instead of inheriting the previous
+			    tab's layout — the roads always find their rows, on every tab. */}
+			<PairBoard key={mode} board={board} corridor={gutter} reveal={expanded} onReveal={setExpanded} />
 			<Detail pair={pair} />
 		</Frame>
 	);
