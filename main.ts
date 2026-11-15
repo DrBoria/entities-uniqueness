@@ -329,7 +329,7 @@ const main = async (argv) => {
 	if (args.report) {
 		const reportPath = resolveAgainst(args.report, config.root);
 		fs.mkdirSync(path.dirname(reportPath), { recursive: true });
-		fs.writeFileSync(reportPath, renderEntityReport(result), "utf8");
+		fs.writeFileSync(reportPath, renderEntityReport(result, config.verbose), "utf8");
 	}
 
 	if (args.overview) {

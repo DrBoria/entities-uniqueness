@@ -41,8 +41,9 @@ const marksFor = (lanes, column, line) => {
 };
 
 // One column of items: only the rows that carry a cell in this column (a row
-// written on the other side alone is not a blank filler here).
-const columnOf = (rows, lanes, index, path) => ({
+// written on the other side alone is not a blank filler here). `parentLine` is
+// the entity's declaration line — the head of its block, drawn emphasised.
+const columnOf = (rows, lanes, index, path, parentLine) => ({
 	id: String(index),
 	kind: "items",
 	mirrored: index >= 1,
@@ -53,9 +54,22 @@ const columnOf = (rows, lanes, index, path) => ({
 			const cell = row.cells[index];
 			const id = String(cell.no);
 
-			return { id, plate: id, text: textOf(cell), marks: marksFor(lanes, String(index), id) };
+			return { id, plate: id, text: textOf(cell), blockParent: parentLine != null && id === String(parentLine), marks: marksFor(lanes, String(index), id) };
 		}),
 });
+
+// THE BLOCK of one side: the entity's declaration line is the parent, every other
+// line of its body a member. Hovering any member lights the whole entity — the
+// declaration head included — so the reader sees "this type and all its members",
+// not one isolated property. Both sides get their own block; the correspondence
+// lanes still tie the matching members across the two columns.
+const blockOf = (side, index) => {
+	if (!side || side.startLine == null) return null;
+	const parent = String(side.startLine);
+	const members = (side.lines ?? []).map((_, i) => String(side.startLine + i)).filter((id) => id !== parent);
+
+	return { id: `entity${index}`, tone: "same", parent: [{ column: String(index), items: [parent] }], members: [{ column: String(index), items: members }] };
+};
 
 /**
  * Build everything code-diff needs for one pair and one selected signal:
@@ -68,10 +82,12 @@ export const buildBoard = (pair, signal) => {
 	const links = pair.links?.[signal] ?? [];
 	const lanes = resolveLanes(flat, columns, links);
 	const paths = pair.columns ?? [{}, {}];
+	const blocks = [blockOf(pair.left, 0), blockOf(pair.right, 1)].filter(Boolean);
 
 	return {
 		rows,
 		connections: lanes,
-		columns: [columnOf(flat, lanes, 0, paths[0]?.path), columnOf(flat, lanes, 1, paths[1]?.path)],
+		blocks,
+		columns: [columnOf(flat, lanes, 0, paths[0]?.path, pair.left?.startLine), columnOf(flat, lanes, 1, paths[1]?.path, pair.right?.startLine)],
 	};
 };

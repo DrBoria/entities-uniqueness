@@ -149,6 +149,95 @@ const renderFiltered = (findings) => {
 	];
 };
 
+// Aliases / inheritance: reuse, not duplication. The page draws them on the
+// Inheritance tab; the report lists them so the terminal carries the same fact.
+const renderAliases = (findings) => {
+	const aliases = findings.filter((f) => f.kind === KIND.Alias);
+	if (aliases.length === 0) return [];
+	return [
+		`## Aliases / inheritance (${aliases.length})`,
+		"",
+		...table(
+			["Entity", "Location", "Reuses", "Location"],
+			aliases.map((f) => [f.left?.name ?? "—", loc(f.left), f.right?.name ?? "—", loc(f.right)]),
+		),
+	];
+};
+
+// The duplicate trees and shared-entity candidates the page's Trees view draws.
+// The extract list can run into the tens of thousands; the strongest are shown
+// and the rest pointed at the catalog, exactly as the page does.
+const SHARED_ENTITY_TOP = 50;
+
+const renderTree = (node, depth) => {
+	const lines = [];
+	const pad = "  ".repeat(depth);
+	if (depth === 0) {
+		lines.push(`### Duplicates of ${node.entity.name}`);
+		lines.push("");
+	}
+	lines.push(`${pad}- ${node.entity.name} \`${node.entity.sourceFile}:${node.entity.line}\``);
+	for (const child of node.children) lines.push(...renderTree(child, depth + 1));
+
+	return lines;
+};
+
+const renderTrees = (trees) => {
+	if (!trees || (!trees.trees?.length && !trees.extracts?.length)) return [];
+	const lines = [];
+	if (trees.trees?.length > 0) {
+		lines.push(`## Duplicate trees (${trees.trees.length})`);
+		lines.push("");
+		for (const tree of trees.trees) lines.push(...renderTree(tree, 0));
+		lines.push("");
+	}
+	if (trees.extracts?.length > 0) {
+		const top = [...trees.extracts].sort((x, y) => (y.score ?? 0) - (x.score ?? 0)).slice(0, SHARED_ENTITY_TOP);
+		lines.push(`## Shared-entity candidates (${trees.extracts.length})`);
+		lines.push("");
+		for (const x of top) {
+			lines.push(`- **${x.left.name}** \`${x.left.sourceFile}:${x.left.line}\` ↔ **${x.right.name}** \`${x.right.sourceFile}:${x.right.line}\` (${x.score ?? 0})`);
+			lines.push(`  - shared: ${x.shared.join(", ") || "–"} — ${x.suggest}`);
+		}
+		if (trees.extracts.length > top.length) {
+			lines.push("");
+			lines.push(`_…and ${trees.extracts.length - top.length} more (see the catalog for the full list)._`);
+		}
+		lines.push("");
+	}
+
+	return lines;
+};
+
+const renderSuggestions = (suggestions) => {
+	if (!suggestions || suggestions.length === 0) return [];
+	const lines = [`## Refactor suggestions (${suggestions.length})`, ""];
+	for (const s of suggestions) {
+		lines.push(`- **${s.type}** — ${s.reason}`);
+		lines.push(`  - entities: ${s.entities.join(", ")}`);
+		lines.push(`  - members: ${s.members.join(", ") || "–"}`);
+	}
+	lines.push("");
+
+	return lines;
+};
+
+const renderCatalog = (entities) => {
+	if (!entities || entities.length === 0) return [];
+	const lines = [
+		`## Cataloged entities (${entities.length})`,
+		"",
+		...table(
+			["Entity", "Location", "Kind", "Framework", "Exported", "Properties", "Methods"],
+			[...entities]
+				.sort((a, b) => a.name.localeCompare(b.name) || a.sourceFile.localeCompare(b.sourceFile))
+				.map((e) => [e.name, `\`${e.sourceFile}:${e.line}\``, e.kind, e.framework || "–", e.exported ? "yes" : "no", e.properties.length, e.methods.length]),
+		),
+	];
+
+	return lines;
+};
+
 const renderNotices = (notices) => {
 	if (!notices.length) return "";
 	const lines = ["", `## Not read (${notices.length})`, ""];
@@ -158,17 +247,26 @@ const renderNotices = (notices) => {
 	return lines.join("\n");
 };
 
-// `verbose` keeps the filtered-out section. `notices` are the caveats the run
-// collected; the caller passes them in so both artifacts show the SAME ones.
-const renderEntityReport = (comp, verbose, notices = takeNotices()) => {
+// `verbose` keeps the filtered-out section and the full catalog. `notices` are
+// the caveats the run collected; the caller passes them in so both artifacts show
+// the SAME ones. Every tab the page draws has a section here: the verdict tiers
+// (with each matcher's own lines), aliases, cross-file clusters, the duplicate
+// trees and shared-entity candidates, and the refactor suggestions.
+const renderEntityReport = (comp, verbose = false, notices = takeNotices()) => {
 	const findings = comp.findings ?? describeComp(comp);
 	const candidates = new Map((comp.entities ?? []).map((e) => [`${e.sourceFile}#${e.name}`, e]));
 	const opts = { ignoredMembers: comp.ignoredMembers ?? [], tuning: comp.tuning ?? {} };
 	const lines = [];
 	lines.push(...renderHeader(comp, findings));
 	for (const tier of [TIER.Duplicate, TIER.Extract, TIER.Similar]) lines.push(...renderTier(tier, findings, candidates, opts));
+	lines.push(...renderAliases(findings));
 	lines.push(...renderClusters(findings));
-	if (verbose) lines.push(...renderFiltered(findings));
+	lines.push(...renderTrees(comp.trees));
+	lines.push(...renderSuggestions(comp.suggestions));
+	if (verbose) {
+		lines.push(...renderFiltered(findings));
+		lines.push(...renderCatalog(comp.entities));
+	}
 	if (notices.length) lines.push(renderNotices(notices));
 
 	return lines.join("\n");

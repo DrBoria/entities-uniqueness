@@ -21,6 +21,7 @@ export const PairBoard = ({ board, corridor, reveal }) => {
 			tones={tones}
 			columns={board.columns}
 			connections={board.connections}
+			blocks={board.blocks}
 			corridors={[corridor, undefined]}
 			reveal={reveal}
 			fit="scroll"
