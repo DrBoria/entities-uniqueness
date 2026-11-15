@@ -26,6 +26,7 @@ export const PairBoard = ({ board, corridor, reveal }) => {
 			reveal={reveal}
 			fit="scroll"
 			tokenize={tokenize}
+			options={{ boardHeight: "68vh", fullMount: 120 }}
 		/>
 	);
 };
