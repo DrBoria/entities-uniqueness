@@ -7,34 +7,30 @@ import { theme } from "../../theme";
 // One file decides every colour this view uses: the wash behind a line, the
 // band that connects it to its twin, the editor tokens, and the chrome the
 // components borrow from the report. No component in `pair/` knows a hex.
+//
+// CONTRAST RULE: every wash is DARK and SATURATED — a deep red, a deep teal —
+// so the light editor tokens on top keep a readable contrast (light text on a
+// dark tint, like white on dark blue). A pale translucent wash (light amber,
+// light red at low alpha over light text) washed the glyphs out; nothing here
+// is lighter than the code surface it sits on.
 
-// The row BAND is a whisper: the code on top of it keeps its own colours. One band per
-// row is painted (nested lanes no longer stack), so this value is what the reader sees —
-// it has to be visible, not invisible, because it is the only "this row is on the lane".
-const A = 0.09;
 const SAME = "255, 107, 107";
-// A row that BREAKS a correspondence is a note, not an error: a cool green at half
-// the lane's alpha. A warm tint read as "something is wrong here".
-const A_DIFF = 0.06;
 const DIFF = "120, 200, 170";
-// THE ONE LANE under the pointer. Every other row on the board is a whisper, and
-// only the lane the reader points at is allowed to be a mark — a wash that is the
-// same on every row is not a highlight, it is a background.
-const A_HOT = 0.16;
-// The MARK over the exact occurrence is stronger than the band it sits on — otherwise
-// "this range is the one the lane is about" was told in the same colour as "this row
-// is on the lane", which is no information at all.
-const A_MARK = 0.18;
-// The occurrence mark is a DIFFERENT hue from the red band: amber on red, never red on
-// red. A red mark over a red wash vanished into it ("don't do red on red"); a warm amber
-// highlighter reads as "this exact word" on top of the cool red "this row is on a lane".
-const MARK = "255, 193, 94";
+// The row band: visible, but far below the glyphs' own luminance.
+const A = 0.16;
+const A_DIFF = 0.12;
+// THE ONE LANE under the pointer: the same hue, held stronger.
+const A_HOT = 0.3;
+// The MARK over the exact occurrence: a saturated wash of the lane's own hue —
+// dark enough that the light token ink stays readable on it, strong enough to
+// read as "this exact word" over the row band. Never a pale highlighter.
+const A_MARK = 0.42;
 
 const rgba = (rgb, alpha) => `rgba(${rgb}, ${alpha})`;
 
 // Editor tokens: what Prism emits, coloured like a dark editor theme.
 const TOKEN = {
-	comment: "#5c6773",
+	comment: "#8b98a9",
 	keyword: "#c792ea",
 	string: "#c3e88d",
 	number: "#f78c6c",
@@ -49,15 +45,14 @@ export const pairTheme = {
 	// A line that exists on both sides. The band is the same colour as the wash:
 	// the wash is the row, the band is the road between the two rows.
 	band: { same: `rgb(${SAME})`, diff: `rgb(${DIFF})` },
-	wash: { same: rgba(SAME, A), diff: rgba(DIFF, A_DIFF), hot: rgba(SAME, A_HOT), hotDiff: rgba(DIFF, 0.12) },
-	// The exact occurrence a lane is about: an AMBER highlighter over the red band, painted
-	// BEHIND the glyphs so the token colour survives. Never red on red.
-	mark: { same: rgba(MARK, 0.26), diff: rgba(DIFF, 0.16) },
-	// The ribbon itself: a visible ROAD through the corridor, stronger than the row wash
-	// so the path between columns reads on a dark surface (the whisper-alpha wash made
-	// every ribbon invisible). ONE calm shade from end to end — never a slab. `hot` is
-	// the same hue held a little stronger for the lane under the pointer, painted ONCE
-	// (the board never lays the road twice, which stacked alpha into a wild bright bend).
+	wash: { same: rgba(SAME, A), diff: rgba(DIFF, A_DIFF), hot: rgba(SAME, A_HOT), hotDiff: rgba(DIFF, 0.24) },
+	// The exact occurrence a lane is about: a saturated wash of the lane's hue,
+	// painted BEHIND the glyphs. Light ink on a dark saturated tint reads; a
+	// pale amber highlighter under light ink did not.
+	mark: { same: rgba(SAME, A_MARK), diff: rgba(DIFF, 0.34) },
+	// The ribbon itself: a visible ROAD through the corridor, stronger than the
+	// row wash. ONE calm shade from end to end; `hot` is the same hue held a
+	// little stronger for the lane under the pointer, painted ONCE.
 	ribbon: { same: rgba(SAME, 0.3), diff: rgba(DIFF, 0.24), hot: rgba(SAME, 0.44), hotDiff: rgba(DIFF, 0.36) },
 	token: TOKEN,
 	chrome: {

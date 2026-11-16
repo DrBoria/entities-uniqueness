@@ -10,6 +10,11 @@ import { pairTheme } from "../components/pair/theme";
 export const tones = {
         same: { fill: pairTheme.wash.same, line: pairTheme.ribbon.same, lineHot: pairTheme.ribbon.hot, hot: pairTheme.wash.hot },
         differs: { fill: pairTheme.wash.diff, line: pairTheme.ribbon.diff, lineHot: pairTheme.ribbon.hotDiff, hot: pairTheme.wash.hotDiff },
+        // One-sided rows: a line written on ONE side only has no lane. It carries
+        // its own saturated tint over the whole row, so an added blank line reads
+        // as added, not as a hole in the code.
+        added: { fill: pairTheme.wash.diff, line: pairTheme.ribbon.diff, hot: pairTheme.wash.hotDiff },
+        removed: { fill: pairTheme.wash.same, line: pairTheme.ribbon.same, hot: pairTheme.wash.hot },
 };
 
 // The theme code-diff draws its chrome with (paper, ink, ribbons, fonts).

@@ -56,8 +56,10 @@ export const PairLegend = ({ mode, pair, decision }) => {
 				</span>
 			) : null}
 			{signal ? (
-				<span style={{ marginLeft: "auto", color: pairTheme.chrome.faint }}>
-					{group.label} {percentOf(signal.score)}% × {signal.weight.toFixed(2)} = {(signal.score * signal.weight).toFixed(2)}
+				<span style={{ marginLeft: "auto", color: pairTheme.chrome.faint }} title={signal.fastPath ? (decision?.reason ?? "decided by a structural fact, not the weighted blend") : undefined}>
+					{signal.fastPath
+						? `${group.label} ${percentOf(signal.score)}% — decides the verdict (${Math.round((signal.contribution ?? 1) * 100)}%)`
+						: `${group.label} ${percentOf(signal.score)}% × ${signal.weight.toFixed(2)} = ${(signal.score * signal.weight).toFixed(2)}`}
 				</span>
 			) : null}
 		</Legend>

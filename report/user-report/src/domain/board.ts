@@ -28,11 +28,12 @@ const flatten = (rows) => {
 
 // The standing marks of one item: every lane mark that sits on this column/line.
 // code-diff paints these behind the glyphs; the lane under the pointer adds the
-// focused (strong) mark itself, from the connection's marks + twins.
+// focused (strong) mark itself, from the connection's anchors + duplicates.
+// resolveLanes spells the ranges `anchors` (new shape); older lanes use `marks`.
 const marksFor = (lanes, column, line) => {
 	const marks = [];
 	for (const lane of lanes) {
-		for (const mark of lane.marks ?? []) {
+		for (const mark of lane.anchors ?? lane.marks ?? []) {
 			if (mark.column === column && String(mark.line) === String(line)) marks.push({ from: mark.from, to: mark.to });
 		}
 	}
@@ -53,8 +54,12 @@ const columnOf = (rows, lanes, index, path, parentLine) => ({
 		.map((row) => {
 			const cell = row.cells[index];
 			const id = String(cell.no);
+			// A row written on ONE side only has no lane: it is added (right) or
+			// removed (left) and carries that tint over the whole line — an added
+			// blank line reads as added, not as a hole.
+			const tone = row.type === "add" ? "added" : row.type === "remove" ? "removed" : undefined;
 
-			return { id, plate: id, text: textOf(cell), blockParent: parentLine != null && id === String(parentLine), marks: marksFor(lanes, String(index), id) };
+			return { id, plate: id, text: textOf(cell), tone, blockParent: parentLine != null && id === String(parentLine), marks: marksFor(lanes, String(index), id) };
 		}),
 });
 

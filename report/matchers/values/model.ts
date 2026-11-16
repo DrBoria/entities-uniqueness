@@ -4,35 +4,71 @@
 //
 // A closed set of literals (enum / union) is shown as one row per value; a deep
 // initializer tree is flattened to one row per leaf path (`colors.bg`,
-// `spacing[0]`, …) so the board can highlight the exact values that agree. `same`
-// means the two sides hold the same value at that path.
+// `spacing[0]`, …). A renamed copy changes every key, so leaf paths are paired
+// the SAME way the matcher scores them: shared keys by name, renamed objects
+// POSITIONALLY — otherwise a full-match pair showed zero shared rows.
 
 import { score } from "../../../matcher/values";
+import { leavesOf, sourceText } from "./leaf-paths";
 
-// Flatten a value tree to leaf rows: [{ path, left, right }] is built by the
-// caller pairing two trees; here we flatten ONE tree to { path, value } leaves.
-const flatten = (node, prefix, out) => {
-	if (node == null || typeof node !== "object") return out;
-	if (node.kind === "primitive" || node.kind === "opaque") {
-		out.push({ path: prefix, text: node.kind === "primitive" ? String(node.value) : String(node.text) });
+// One row per value of the union of two closed sets. `left`/`right` carry the
+// value TEXT so the view can locate and paint the exact word.
+const setRows = (setA, setB) => {
+	const bSet = new Set(setB);
+	const names = [...new Set([...setA, ...setB])];
+
+	return names.map((value) => {
+		const inA = setA.includes(value);
+		const inB = bSet.has(value);
+
+		return { name: value, left: inA ? { text: value } : null, right: inB ? { text: value } : null, shared: inA && inB, same: inA && inB };
+	});
+};
+
+// Pair two objects' entries: shared keys by name; when (almost) no key is
+// shared and the arity agrees, positionally — the matcher's renamed-copy rule.
+const entryPairs = (a, b) => {
+	const A = a.entries || {};
+	const B = b.entries || {};
+	const keysA = Object.keys(A);
+	const keysB = Object.keys(B);
+	const shared = keysA.filter((k) => Object.prototype.hasOwnProperty.call(B, k));
+	if (keysA.length === keysB.length && keysA.length > 0 && shared.length * 2 < keysA.length) return keysA.map((k, i) => [k, keysB[i], A[k], B[keysB[i]]]);
+	const keys = [...new Set([...keysA, ...keysB])];
+
+	return keys.map((k) => [k, k, A[k] ?? null, B[k] ?? null]);
+};
+
+// Walk two trees together, emitting one row per leaf pair under the LEFT path
+// (the display address). Each side keeps its OWN leaf path (`leftPath` /
+// `rightPath`) so a renamed copy's links can anchor on the right side's own
+// declaration line, not on the left side's key.
+const pairLeaves = (a, b, prefix, rightPrefix, out) => {
+	const leaf = (node) => node != null && typeof node === "object" && ["primitive", "opaque", "function"].includes(node.kind);
+	const textOf = (node) => (node == null ? null : node.kind === "primitive" ? String(node.value) : node.kind === "function" ? "ƒ" : String(node.text));
+	if (leaf(a) || leaf(b) || a == null || b == null) {
+		const left = textOf(a);
+		const right = textOf(b);
+		out.push({ name: prefix, leftPath: prefix, rightPath: rightPrefix, left: left == null ? null : { text: left }, right: right == null ? null : { text: right }, shared: left != null && right != null, same: left != null && left === right });
 
 		return out;
 	}
-	if (node.kind === "function") {
-		out.push({ path: prefix, text: "ƒ" });
+	if (a.kind === "array" && b.kind === "array") {
+		const len = Math.max((a.items || []).length, (b.items || []).length);
+		for (let i = 0; i < len; i += 1) pairLeaves((a.items || [])[i] ?? null, (b.items || [])[i] ?? null, `${prefix}[${i}]`, `${rightPrefix}[${i}]`, out);
 
 		return out;
 	}
-	if (node.kind === "array") {
-		(node.items || []).forEach((item, i) => flatten(item, `${prefix}[${i}]`, out));
+	if (a.kind === "object" && b.kind === "object") {
+		for (const [ka, kb, va, vb] of entryPairs(a, b)) {
+			pairLeaves(va, vb, prefix ? `${prefix}.${ka}` : ka, kb == null ? "" : rightPrefix ? `${rightPrefix}.${kb}` : kb, out);
+		}
 
 		return out;
 	}
-	if (node.kind === "object") {
-		for (const [key, value] of Object.entries(node.entries || {})) flatten(value, prefix ? `${prefix}.${key}` : key, out);
-
-		return out;
-	}
+	// Different container kinds: each side's leaves stand alone.
+	for (const l of leavesOf(a)) out.push({ name: prefix ? `${prefix}.${l.path}` : l.path, leftPath: prefix ? `${prefix}.${l.path}` : l.path, rightPath: "", left: { text: l.text }, right: null, shared: false, same: false });
+	for (const l of leavesOf(b)) out.push({ name: rightPrefix ? `${rightPrefix}.${l.path}` : l.path, leftPath: "", rightPath: rightPrefix ? `${rightPrefix}.${l.path}` : l.path, left: null, right: { text: l.text }, shared: false, same: false });
 
 	return out;
 };
@@ -40,47 +76,23 @@ const flatten = (node, prefix, out) => {
 const build = (left, right, opts = {}) => {
 	if (!left || !right) return null;
 	const signal = score(left, right, opts);
-
-	// Closed value sets: one row per value in the union. `left`/`right` carry the
-	// value TEXT (the literal as written) when that side has the member, so the
-	// view can locate and paint the exact word — a boolean would leave the link
-	// with nothing to anchor on and no ribbon would be drawn.
 	const setA = left.values ?? [];
 	const setB = right.values ?? [];
 	if (setA.length && setB.length) {
-		const bSet = new Set(setB);
-		const names = [...new Set([...setA, ...setB])];
-		const rows = names.map((value) => {
-			const inA = setA.includes(value);
-			const inB = bSet.has(value);
-			return { name: value, left: inA ? { text: value } : null, right: inB ? { text: value } : null, shared: inA && inB, same: inA && inB };
-		});
+		const rows = setRows(setA, setB);
 
 		return { form: "set", rows, sharedCount: rows.filter((r) => r.shared).length, score: signal.score, hasEvidence: signal.hasEvidence, evidence: signal.evidence };
 	}
-
-	// Deep trees: one row per leaf path in the union of both trees.
 	const ta = left.valueTree ?? null;
 	const tb = right.valueTree ?? null;
-	if (ta == null || tb == null) {
-		return { form: null, rows: [], sharedCount: 0, score: signal.score, hasEvidence: signal.hasEvidence, evidence: signal.evidence };
-	}
-	const la = flatten(ta, "", []);
-	const lb = flatten(tb, "", []);
-	const bByPath = new Map(lb.map((leaf) => [leaf.path, leaf.text]));
-	const aPaths = new Set(la.map((leaf) => leaf.path));
-	const rows = [];
-	for (const leaf of la) {
-		const rightText = bByPath.get(leaf.path);
-		const shared = rightText !== undefined;
-		rows.push({ name: leaf.path, left: { text: leaf.text }, right: shared ? { text: rightText } : null, shared, same: shared && leaf.text === rightText });
-	}
-	for (const leaf of lb) {
-		if (aPaths.has(leaf.path)) continue;
-		rows.push({ name: leaf.path, left: null, right: { text: leaf.text }, shared: false, same: false });
-	}
+	if (ta == null || tb == null) return { form: null, rows: [], sharedCount: 0, score: signal.score, hasEvidence: signal.hasEvidence, evidence: signal.evidence };
+	const rows = pairLeaves(ta, tb, "", "", []).map((row) => ({
+		...row,
+		left: row.left == null ? null : { text: sourceText(row.left.text) },
+		right: row.right == null ? null : { text: sourceText(row.right.text) },
+	}));
 
-	return { form: "tree", rows, sharedCount: rows.filter((r) => r.shared).length, score: signal.score, hasEvidence: signal.hasEvidence, evidence: signal.evidence };
+	return { form: "tree", rows, leftTree: ta, rightTree: tb, sharedCount: rows.filter((r) => r.shared).length, score: signal.score, hasEvidence: signal.hasEvidence, evidence: signal.evidence };
 };
 
-export {  build  };
+export { build };

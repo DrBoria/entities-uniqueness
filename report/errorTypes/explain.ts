@@ -32,6 +32,19 @@ const contributionOf = (decision, key, totalWeight) => {
 	return (weight * score) / (totalWeight || 1);
 };
 
+// The engine's fast-path verdicts carry a `reason` naming the structural fact
+// that decided the pair ("renamed copy: …", "same value set: …"). Map it to the
+// reader's sentence; null when the verdict came from the weighted blend.
+const fastPhrase = (decision) => {
+	const reason = String(decision.reason ?? "");
+	if (reason.startsWith("renamed copy")) return PHRASES.fastRenamedCopy;
+	if (reason.startsWith("same value set")) return PHRASES.fastValueSet;
+	if (reason.startsWith("alias:") || reason.startsWith("store-model copy:") || reason.startsWith("identical shape:")) return reason;
+	if (reason.startsWith("values-only pair")) return PHRASES.valuesOnly;
+
+	return null;
+};
+
 const explain = (decision) => {
 	const totalWeight = SIGNALS.reduce((sum, s) => sum + (decision.weights?.[s.key] ?? 0), 0) || 1;
 	const evidencing = new Set(decision.evidencing ?? SIGNALS.map((s) => s.key));
@@ -41,6 +54,12 @@ const explain = (decision) => {
 	// name's weight and share of the verdict are folded into the Signature row.
 	const nameWeight = decision.weights?.name ?? 0;
 	const nameContribution = contributionOf(decision, "name", totalWeight);
+
+	// A fast-path verdict (renamed copy, same value set, alias, …) is decided by
+	// ONE structural fact, not by the weighted blend — the weights printed next
+	// to it would claim a share the signal never had. Say the fact instead.
+	const fast = fastPhrase(decision);
+	const fastKeys = fast === null ? [] : (decision.evidencing ?? []);
 
 	const rows = SIGNALS.map((signal) => {
 		const sig = decision.signals?.[signal.key] ?? {};
@@ -63,16 +82,20 @@ const explain = (decision) => {
 			weight,
 			contribution,
 			applied,
+			// The verdict came from this signal's structural fact, not the blend.
+			fastPath: fastKeys.includes(signal.key),
 			evidence: chips(sig.evidence),
 		};
 	});
 
 	const why = [];
+	if (fast !== null) why.push({ tone: TONE.Agree, signal: (decision.evidencing ?? [])[0] ?? "values", text: fast });
 	for (const row of [...rows].sort((a, b) => b.contribution - a.contribution)) {
 		if (!row.applied) {
 			why.push({ tone: TONE.Off, signal: row.key, text: fill(PHRASES.signalOff, { label: row.label }) });
 			continue;
 		}
+		if (fast !== null && (decision.evidencing ?? []).includes(row.key)) continue;
 		const template = row.score >= 0.6 ? PHRASES.signal : PHRASES.signalDisagrees;
 		why.push({
 			tone: row.score >= 0.6 ? TONE.Agree : TONE.Disagree,
@@ -90,6 +113,7 @@ const explain = (decision) => {
 		thresholds: decision.thresholds ?? {},
 		weights: decision.weights ?? {},
 		vetoes: [],
+		reason: decision.reason ?? null,
 		signals: rows,
 		why,
 		headline: (() => {

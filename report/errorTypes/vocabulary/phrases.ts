@@ -32,6 +32,7 @@ const PHRASES = {
 	fastAlias: "{left} is an alias of {right} — reuse (inheritance), not a duplicate.",
 	fastStoreCopy: "{left} mirrors the store model {right} — a generated copy of the same shape.",
 	fastIdentical: "The two shapes are identical (every shared property agrees in type) — treated as a duplicate.",
+	valuesOnly: "Neither side has structural identity — the shared values ARE the verdict, graded directly.",
 	valuesDiffer: "The two hold different values, so a shared shape alone is not a duplicate.",
 	vetoFloor: "Confidence {confidence} is under the {threshold} floor for the tier.",
 

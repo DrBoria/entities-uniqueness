@@ -20,6 +20,7 @@
 //   inheritance  the extends / implements bases, and the alias target
 
 import { wordOf } from "./word";
+import { valuesLinks } from "./values-links";
 
 // One link per shared member of a model. `key` disambiguates members that share
 // a name: a property pairs by name+type, a method by name+signature. `line` is
@@ -111,33 +112,6 @@ const signatureLinks = (model) => {
 	return links;
 };
 
-// Values: one link per shared value leaf, anchored on the value's path tail (the
-// key or index the value sits under). A renamed copy lights up every leaf.
-const valuesLinks = (model) => {
-	if (!model || !model.rows) return [];
-	const label = wordOf("values", model.sharedCount ?? 0);
-	const links = [];
-	for (const row of model.rows) {
-		if (!row.shared) continue;
-		// The last path segment is the word the value is written under.
-		const tail = String(row.name).split(".").pop().replace(/\[\d+\]$/, "");
-		const leftText = row.left?.text;
-		const rightText = row.right?.text;
-		if (!leftText || !rightText) continue;
-		links.push({
-			connectionId: `same:value:${row.name}`,
-			label,
-			tone: row.same ? "same" : "differs",
-			leftColumn: "0",
-			rightColumn: "1",
-			left: { name: tail || leftText, key: row.name },
-			right: { name: tail || rightText, key: row.name },
-		});
-	}
-
-	return links;
-};
-
 const inheritanceLinks = (model, leftEntity, rightEntity) => {
 	if (!model || !model.hasEvidence) return [];
 	const links = [];
@@ -177,12 +151,13 @@ const inheritanceLinks = (model, leftEntity, rightEntity) => {
 	return links;
 };
 
-// All links per signal, keyed by the SIGNAL the tab selects.
-const linksBySignal = (analysis, leftEntity, rightEntity) => ({
+// All links per signal, keyed by the SIGNAL the tab selects. Values links need
+// the raw source spans to resolve each leaf's declaration line.
+const linksBySignal = (analysis, leftEntity, rightEntity, spans: { left?: any; right?: any } = {}) => ({
 	properties: propertyLinks(analysis.properties),
 	methods: methodLinks(analysis.methods),
 	signature: signatureLinks(analysis.signature),
-	values: valuesLinks(analysis.values),
+	values: valuesLinks(analysis.values, spans.left, spans.right),
 	inheritance: inheritanceLinks(analysis.inheritance, leftEntity, rightEntity),
 });
 
