@@ -39,6 +39,17 @@ const fileCache = new Map();
 // plain `Name` written in an annotation.
 const sanitizeTypeText = (text) => String(text || "").replace(/import\("[^"]*"\)\./g, "").replace(/import\("[^"]*"\)/g, "import");
 
+// The canonical spelling of a RESOLVED object/array type: ts-morph prints
+// `{ a: string; b: number; }` with spaces and a trailing semicolon, while the
+// type-node canonicalizer emits `{a:string;b:number}`. Compact the resolved text
+// to the same form so an inferred shape and an annotated shape compare equal.
+const compactShape = (text) =>
+	String(text || "")
+		.replace(/\s+/g, "")
+		.replace(/;}/g, "}")
+		.replace(/\bArray<([^>]*)>/g, "$1[]")
+		.replace(/\bReadonlyArray<([^>]*)>/g, "$1[]");
+
 const setTsConfig = (configPath) => {
 	const next = configPath ? path.resolve(configPath) : null;
 	if (next === explicitConfig) return;
@@ -119,8 +130,6 @@ const inferType = (node) => {
 			return "object";
 		}
 
-		if (k === SyntaxKind.ObjectLiteralExpression) return "object";
-		if (k === SyntaxKind.ArrayLiteralExpression) return "array";
 		if (k === SyntaxKind.ArrowFunction || k === SyntaxKind.FunctionExpression) return "function";
 		if (k === SyntaxKind.TemplateExpression || k === SyntaxKind.NoSubstitutionTemplateLiteral) return "string";
 
@@ -132,10 +141,19 @@ const inferType = (node) => {
 			if (typeof resolved.isNumberLiteral === "function" && resolved.isNumberLiteral()) return "number";
 			if (typeof resolved.isStringLiteral === "function" && resolved.isStringLiteral()) return "string";
 			if (typeof resolved.isTemplateLiteral === "function" && resolved.isTemplateLiteral()) return "string";
+			// An object/array literal resolves to its WIDENED shape
+			// (`{a: string}`, `string[]`) — the same form a hand-written type
+			// annotation produces. Compact it to the canonical spelling so an
+			// unannotated default object compares equal to the interface it mirrors.
+			if (k === SyntaxKind.ObjectLiteralExpression || k === SyntaxKind.ArrayLiteralExpression) {
+				const shape = compactShape(sanitizeTypeText(resolved.getText()));
+				if (shape && shape !== "any" && shape !== "unknown") return shape;
+				return k === SyntaxKind.ArrayLiteralExpression ? "array" : "object";
+			}
 			const text = sanitizeTypeText(resolved.getText());
 			if (text && text !== "any" && text !== "unknown") return text;
 		}
-		return "object";
+		return k === SyntaxKind.ArrayLiteralExpression ? "array" : "object";
 	} catch {
 		return "object";
 	}
@@ -248,11 +266,15 @@ const extractClassLike = (node, { name, exported, sourceFile, isInterface }) => 
 			if (!pName) continue;
 			const typeNode = call(member, "getTypeNode");
 			const initializer = call(member, "getInitializer");
-			const type = typeNode
+			let type = typeNode
 				? canon(typeNode, "object")
 				: initializer
 					? inferType(initializer)
 					: "object";
+			// `receiptUrl?: string` — the question token is an OPTIONAL member,
+			// the same shape as `string | undefined` / zod's `.optional()`. Fold
+			// it into the canonical type so both spellings compare equal.
+			if (call(member, "hasQuestionToken") && !type.endsWith("?")) type = `${type}?`;
 			const words = (call(member, "getModifiers") || []).map((x) => x.getText());
 			properties.push({
 				name: pName,
@@ -392,7 +414,9 @@ const extractTypeAlias = (node, { name, exported, sourceFile }) => {
 				const pName = call(member, "getName");
 				if (!pName) continue;
 				const tNode = call(member, "getTypeNode");
-				const t = tNode ? canonicalType(tNode) || "object" : "object";
+				let t = tNode ? canonicalType(tNode) || "object" : "object";
+				// `x?: T` in a type literal is optional, the same as `T | undefined`.
+				if (call(member, "hasQuestionToken") && !t.endsWith("?")) t = `${t}?`;
 				// `Record<number, X>` maps are keyed by numeric id — the keys
 				// are data, not shape (mirrors objectLiteralMembers).
 				if (/^Record<\s*number\b/.test(t)) continue;

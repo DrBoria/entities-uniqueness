@@ -49,8 +49,30 @@ const memberLinks = (model, kind, label, keyOf, nameOf?) => {
 
 const propertyLinks = (model) => memberLinks(model, "property", wordOf("properties", model?.sharedCount ?? 0), (p) => `${p?.name ?? ""}:${p?.type ?? ""}`);
 
-// Methods: highlight the method NAME on its declaration line.
-const methodLinks = (model) => memberLinks(model, "method", wordOf("methods", model?.sharedCount ?? 0), (m) => m?.name ?? "");
+// Methods: highlight the method NAME on its declaration line. A near-miss
+// rename (`fetchTicket` ↔ `fetchTirket`) is a shared row at its similarity, so
+// its link names EACH side's own spelling — the view anchors both words.
+const methodLinks = (model) => {
+	if (!model || !model.rows) return [];
+	const links = [];
+	for (const member of model.rows) {
+		if (!member.shared || !member.left || !member.right) continue;
+		const leftName = member.left.name;
+		const rightName = member.right.name;
+		if (!leftName || !rightName) continue;
+		links.push({
+			connectionId: `same:method:${member.name}`,
+			label: wordOf("methods", model.sharedCount ?? 0),
+			tone: member.same === false ? "differs" : "same",
+			leftColumn: "0",
+			rightColumn: "1",
+			left: { name: leftName, key: leftName, ...(member.left.line ? { line: member.left.line } : {}) },
+			right: { name: rightName, key: rightName, ...(member.right.line ? { line: member.right.line } : {}) },
+		});
+	}
+
+	return links;
+};
 
 // Signature: highlight the PARAMETER LIST (the first parameter, or the return
 // type when there are no parameters) — a DIFFERENT range than the method name, so

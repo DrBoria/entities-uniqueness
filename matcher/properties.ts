@@ -8,6 +8,7 @@
 
 import { GENERIC_TYPES } from "../normalizer/index.js";
 import { DEFAULT_TUNING } from "../tuning";
+import { typesAgree } from "./type-key";
 
 const nameSet = (props, ignored) => new Set((props || []).map((p) => p.name).filter((n) => n && !ignored.has(n)));
 
@@ -40,7 +41,7 @@ const typeAgreement = (a, b) => {
 	for (const [name, type] of amap) {
 		if (bmap.has(name)) {
 			shared += 1;
-			if (type === bmap.get(name)) agree += 1;
+			if (typesAgree(type, bmap.get(name))) agree += 1;
 		}
 	}
 

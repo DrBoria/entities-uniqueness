@@ -97,10 +97,12 @@ describe("zod normalization (chomp-2 style, import from utils)", () => {
 		expect(assignment.get("careCircle")).toBe("string[]?");
 	});
 
-	it("canonicalizes arrays of inline z.object (no raw z.* text)", () => {
+	it("canonicalizes arrays of inline z.object to the concrete shape (no raw z.* text)", () => {
 		const inline = propsOf(entities, "assignmentInlineSchema");
 		const type = inline.get("careCircle");
 		expect(type).not.toContain("z.");
-		expect(type).toBe("object[]?");
+		// The inline object reduces to its fields' canonical types, the same form
+		// a hand-written `{name: string; role?: string}` literal produces.
+		expect(type).toBe("{name:string;role:string?}[]?");
 	});
 });

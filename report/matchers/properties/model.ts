@@ -8,6 +8,7 @@
 // only is a surplus row. This is the whole comparison material the board draws.
 
 import { score } from "../../../matcher/properties";
+import { typesAgree } from "../../../matcher/type-key";
 
 const byName = (props) => {
 	const map = new Map();
@@ -28,7 +29,7 @@ const build = (left, right, opts = {}) => {
 		const a = A.get(name) ?? null;
 		const b = B.get(name) ?? null;
 		const shared = a !== null && b !== null;
-		const sameType = shared && (a.type ?? "") === (b.type ?? "");
+		const sameType = shared && typesAgree(a.type ?? "", b.type ?? "");
 
 		return {
 			name,

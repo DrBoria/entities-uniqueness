@@ -6,8 +6,9 @@
 // a separate signal (see ./signature.js). `ignoredMembers` is config-supplied.
 
 import { DEFAULT_TUNING } from "../tuning";
+import { pairMethods, pairedWeight } from "./method-pairs";
 
-const nameSet = (methods, ignored) => new Set((methods || []).map((m) => m.name).filter((n) => n && n !== "new" && n !== "call" && !ignored.has(n)));
+const nameSet = (methods, ignored): Set<string> => new Set((methods || []).map((m) => m.name).filter((n) => n && n !== "new" && n !== "call" && !ignored.has(n)));
 
 const jaccard = (a, b) => {
 	if (a.size === 0 && b.size === 0) return 1;
@@ -97,6 +98,7 @@ const score = (a, b, opts: any = {}) => {
 	let j = jaccard(A, B);
 	let o = overlap(A, B);
 	let prefixNote = null;
+	let nearMiss = 0;
 	// Exact-name overlap is the primary evidence; a uniform ceremony prefix is a
 	// recognized rename pattern, scored as a strong (not full) match.
 	if (j === 0) {
@@ -107,9 +109,23 @@ const score = (a, b, opts: any = {}) => {
 			prefixNote = stripped.prefix;
 		}
 	}
+	// No exact overlap and no ceremony prefix: grade the correspondence the way
+	// properties grade types — a one-letter rename is still the same method, at
+	// its similarity, not at zero. The weighted intersection keeps the scale
+	// continuous (identical = 1, near miss = its edit similarity).
+	if (j === 0 && prefixNote === null && A.size > 0 && B.size > 0) {
+		const pairs = pairMethods(A, B);
+		const inter = pairedWeight(pairs);
+		if (inter > 0) {
+			const uni = A.size + B.size - inter;
+			j = uni === 0 ? 0 : inter / uni;
+			o = inter / Math.min(A.size, B.size);
+			nearMiss = pairs.filter((p) => !p.exact).length;
+		}
+	}
 	const value = T.jaccardWeight * j + T.overlapWeight * o;
 
-	return { score: value, hasEvidence, evidence: { jaccard: round(j), overlap: round(o), aCount: A.size, bCount: B.size, ...(prefixNote ? { sharedPrefix: prefixNote } : {}) } };
+	return { score: value, hasEvidence, evidence: { jaccard: round(j), overlap: round(o), aCount: A.size, bCount: B.size, ...(prefixNote ? { sharedPrefix: prefixNote } : {}), ...(nearMiss > 0 ? { nearMiss } : {}) } };
 };
 
-export {  score  };
+export { score, pairMethods };

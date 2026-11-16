@@ -13,9 +13,10 @@ const main = require("../dist/main.js");
 // legitimate look-alike. The fixture lives OUTSIDE this package; if it is absent
 // the suite is skipped (the engine still ships and tests on its own).
 //
-// Known, documented gaps are asserted as MISS (not silently passed): e04/e06 are
-// ranked `extract` rather than `duplicate` (the values-only fast path), and e13
-// is correctly dropped. No trap may FAIL (a false duplicate on an expect:none).
+// Known, documented gaps are asserted as MISS (not silently passed). As of the
+// optional/nullable + object-shape inference fixes, e04/e06 are caught as
+// duplicates, so the floor is the full 18/18. e13 is correctly dropped. No trap
+// may FAIL (a false duplicate on an expect:none).
 
 const pluginDir = path.resolve(__dirname, "..");
 const fixtureDir = path.resolve(pluginDir, "../adversarial/entities");
@@ -75,17 +76,18 @@ maybe("adversarial entities e2e (fixture ground truth)", () => {
 		expect(failures.map((t: any) => t.id)).toEqual([]);
 	});
 
-	it("holds the documented detection floor (no regression below 16/18)", () => {
+	it("holds the documented detection floor (no regression below 18/18)", () => {
 		const pass = manifest.traps.filter((t: any) => verdict(t.expect, tiersOf(t.a, t.b)) === "PASS").length;
-		// Round-1 ground truth: 16 PASS, 2 MISS (e04/e06 ranked extract), 0 FAIL.
-		expect(pass).toBeGreaterThanOrEqual(16);
+		// Round-15 ground truth: 18 PASS, 0 MISS, 0 FAIL — e04/e06 now caught by
+		// optional/nullable folding + concrete object/array shape inference.
+		expect(pass).toBeGreaterThanOrEqual(18);
 	});
 
-	it("keeps the known gaps as MISS, not silent passes (e04, e06)", () => {
+	it("catches the former gaps as duplicates (e04, e06)", () => {
 		for (const id of ["e04", "e06"]) {
 			const trap = manifest.traps.find((t: any) => t.id === id);
 			expect(trap).toBeTruthy();
-			expect(verdict(trap.expect, tiersOf(trap.a, trap.b))).toBe("MISS");
+			expect(verdict(trap.expect, tiersOf(trap.a, trap.b))).toBe("PASS");
 		}
 	});
 });

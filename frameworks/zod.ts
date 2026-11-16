@@ -129,9 +129,37 @@ const zodFieldType = (node, zNames) => {
         return `Record<${key},${val}>`;
       }
 
-      // An inline z.object({ ... }) used as a field value has no name to
-      // reference — "object" keeps the type comparable without raw text.
-      if (isZ && method === "object") return "object";
+      // z.enum(["card","paypal"]) — the closed set of literal strings, spelled
+      // the SAME way the type normalizer spells a literal union (sorted, quoted,
+      // joined by |), so a zod enum and a hand-written union compare equal.
+      if (isZ && method === "enum" && args.length) {
+        const arr = args[0];
+        if (arr.getKind() === SyntaxKind.ArrayLiteralExpression) {
+          const vals = arr.getElements().map((el) => el.getText().replace(/^['"]|['"]$/g, "")).map((v) => JSON.stringify(v));
+          if (vals.length) return [...new Set(vals)].sort().join("|");
+        }
+        return "string";
+      }
+
+      // An inline z.object({ ... }) used as a field value: reduce it to the
+      // canonical shape of its fields, the same form a hand-written type literal
+      // produces, so `z.object({a: z.string()})` ≡ `{a: string}`.
+      if (isZ && method === "object") {
+        const shapeArg = args[0];
+        if (shapeArg && shapeArg.getKind() === SyntaxKind.ObjectLiteralExpression) {
+          const members = [];
+          for (const p of shapeArg.getProperties()) {
+            if (p.getKind() !== SyntaxKind.PropertyAssignment) continue;
+            const nameNode = p.getName();
+            const name = typeof nameNode === "string" ? nameNode : nameNode && nameNode.getText ? nameNode.getText() : null;
+            if (!name) continue;
+            const init = p.getInitializer();
+            members.push(`${name}:${init ? zodFieldType(init, zNames) : "unknown"}`);
+          }
+          if (members.length) return `{${members.join(";")}}`;
+        }
+        return "object";
+      }
 
       // z.string() / z.number() / ... — a base type.
       if (isZ) {

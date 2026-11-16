@@ -48,7 +48,7 @@ export const PairLegend = ({ mode, pair, decision }) => {
 			<span>
 				<Dot $c={pairTheme.band.diff} /> green = the members correspond, their text differs
 			</span>
-			<span>no ribbon = one side only, or nothing compared here</span>
+			<span>a short stub = a member on one side only · no ribbon = nothing compared here</span>
 			{name ? (
 				<span title="tokens both names share" style={{ color: pairTheme.chrome.text }}>
 					name {percent(name.score)}

@@ -22,6 +22,7 @@
 
 import { DEFAULT_TUNING } from "./tuning";
 import { score as propertyScore } from "./matcher/properties.js";
+import { typesAgree } from "./matcher/type-key";
 
 const DEFAULT_WEIGHTS = DEFAULT_TUNING.weights;
 const DEFAULT_THRESHOLDS = DEFAULT_TUNING.thresholds;
@@ -346,7 +347,7 @@ const typeAgreement = (a, b) => {
 	for (const [name, type] of amap) {
 		if (bmap.has(name)) {
 			shared += 1;
-			if (type === bmap.get(name)) agree += 1;
+			if (typesAgree(type, bmap.get(name))) agree += 1;
 		}
 	}
 

@@ -14,6 +14,10 @@ const text = (model) => {
 	const head = `${pct(model.score)}  ${shared.length} shared method(s)  (${model.leftCount}↔${model.rightCount})`;
 	const lines = [head];
 	if (shared.length > 0) lines.push(`shared  ${shared.map((r) => (sig(r.left) === sig(r.right) ? sig(r.left) : `${sig(r.left)} ↔ ${sig(r.right)}`)).join(", ")}`);
+	// Near-miss renames are graded, not exact: say the similarity so the number
+	// is explainable (`fetchTicket ↔ fetchTirket 91%`).
+	const renamed = shared.filter((r) => r.renamed);
+	if (renamed.length > 0) lines.push(`near-miss  ${renamed.map((r) => `${r.name} ↔ ${r.renamed} ${pct(r.sim ?? 0)}`).join(", ")}`);
 	// A uniform ceremony prefix (`internalRepositoryFetchCustomer ≡ fetchCustomer`)
 	// is a recognized rename: name the pairs, so the score is explainable.
 	const prefix = model.evidence?.sharedPrefix;
