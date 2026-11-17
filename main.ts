@@ -177,7 +177,7 @@ const extractEntities = (files, config, texts?) => {
 // reference folder).
 const matchPairs = (entities, config) => {
 	const matches = [];
-	const opts = { ignoredMembers: config.ignoredMembers, tuning: config.tuning };
+	const opts = { ignoredMembers: config.ignoredMembers, tuning: config.tuning, entities };
 	for (let i = 0; i < entities.length; i += 1) {
 		for (let j = i + 1; j < entities.length; j += 1) {
 			const a = entities[i];
@@ -201,7 +201,7 @@ const matchPairs = (entities, config) => {
 // live file's entities).
 const matchEntityAgainst = (entity, others, config) => {
 	const matches = [];
-	const opts = { ignoredMembers: config.ignoredMembers, tuning: config.tuning };
+	const opts = { ignoredMembers: config.ignoredMembers, tuning: config.tuning, entities: [entity, ...others] };
 	for (const b of others) {
 		if (b.sourceFile === entity.sourceFile && b.name === entity.name) continue;
 		const signals = matchSignals(entity, b, opts);

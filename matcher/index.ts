@@ -22,7 +22,7 @@ const matchSignals = (a, b, opts: any = {}) => ({
 	methods: methods.score(a, b, opts),
 	signature: signature.score(a, b, opts),
 	values: values.score(a, b, opts),
-	inheritance: inheritance.score(a, b),
+	inheritance: inheritance.score(a, b, opts),
 	name: name.score(a, b, opts),
 });
 

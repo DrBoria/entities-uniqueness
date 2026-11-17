@@ -45,7 +45,7 @@ const buildPair = ({ finding, repoRoot, candidates, opts }) => {
 
 	const leftEntity = candidates.get(`${finding.left.path}#${finding.left.name}`);
 	const rightEntity = candidates.get(`${finding.right?.path}#${finding.right?.name}`);
-	const analysis = analyze(leftEntity, rightEntity, opts);
+	const analysis = analyze(leftEntity, rightEntity, { ...opts, entities: [...candidates.values()] });
 	const links = linksBySignal(analysis, leftEntity, rightEntity, { left, right });
 	const cli = findingText(finding, candidates, opts);
 

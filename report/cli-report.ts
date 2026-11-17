@@ -65,7 +65,7 @@ const matcherBlocks = (candidates, finding, opts) => {
 	const left = candidates.get(`${finding.left?.path}#${finding.left?.name}`);
 	const right = candidates.get(`${finding.right?.path}#${finding.right?.name}`);
 	if (!left || !right) return [];
-	const blocks = describeMatchers(left, right, opts);
+	const blocks = describeMatchers(left, right, { ...opts, entities: [...candidates.values()] });
 	const lines = [];
 	for (const block of blocks) {
 		const [first, ...rest] = block.lines;

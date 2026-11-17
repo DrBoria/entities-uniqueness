@@ -8,6 +8,12 @@
 // strongest heritage fact there is: X carries no shape of its own, it IS Y. That
 // is reuse, not duplication, and the decision-maker reads `alias` to say so.
 // Neutral (no evidence) when neither entity declares any heritage or alias.
+//
+// With an entity index (opts.entities) the heritage sets are the TRANSITIVE
+// closure: a grandchild of Base and a child of Base share Base even though
+// their direct `extends` differ (see ./heritage.js).
+
+import { effectiveHeritage } from "./heritage";
 
 const listOf = (value) => (value == null ? [] : Array.isArray(value) ? value : [value]);
 
@@ -32,9 +38,12 @@ const jaccard = (a, b) => {
 	return uni === 0 ? 0 : inter / uni;
 };
 
-const score = (a, b) => {
-	const A = heritageSet(a);
-	const B = heritageSet(b);
+const score = (a, b, opts: any = {}) => {
+	// With the project's entities, compare the TRANSITIVE heritage closure;
+	// without it, the direct sets (the pair-only call still works).
+	const effective = opts.entities ? effectiveHeritage(a, b, opts.entities) : null;
+	const A = effective ? effective.A : heritageSet(a);
+	const B = effective ? effective.B : heritageSet(b);
 	const shared = [...A].filter((x) => B.has(x));
 	const alias = aliasFact(a, b);
 	const hasEvidence = A.size > 0 || B.size > 0 || alias !== null;

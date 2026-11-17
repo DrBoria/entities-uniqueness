@@ -19,6 +19,7 @@ const REGISTRY = {
 	redux: () => require("./redux"),
 	zustand: () => require("./zustand"),
 	keystone: () => require("./keystone"),
+	apollo: () => require("./apollo"),
 	"class-validator": () => require("./class-validator"),
 };
 

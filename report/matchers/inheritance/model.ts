@@ -6,16 +6,20 @@
 // characters. An alias is shown as its own row so the board can draw the link.
 
 import { score } from "../../../matcher/inheritance";
+import { effectiveHeritage } from "../../../matcher/heritage";
 
 const listOf = (value) => (value == null ? [] : Array.isArray(value) ? value : [value]);
 
 const heritage = (entity) => [...new Set([...listOf(entity.extends), ...listOf(entity.implements)])];
 
-const build = (left, right) => {
+const build = (left, right, opts: any = {}) => {
 	if (!left || !right) return null;
-	const signal = score(left, right);
-	const A = heritage(left);
-	const B = heritage(right);
+	const signal = score(left, right, opts);
+	// With the entity index the rows show the TRANSITIVE closure (the same sets
+	// the score used); without it, the direct heritage.
+	const effective = opts.entities ? effectiveHeritage(left, right, opts.entities) : null;
+	const A = effective ? [...effective.A] : heritage(left);
+	const B = effective ? [...effective.B] : heritage(right);
 	const bSet = new Set(B);
 	const names = [...new Set([...A, ...B])];
 	const rows = names.map((name) => ({ name, left: A.includes(name), right: bSet.has(name), shared: A.includes(name) && bSet.has(name) }));

@@ -17,25 +17,15 @@
 // of business names.
 
 import { SyntaxKind } from "ts-morph";
+import { canonicalMemberType } from "./mst-types";
+import { boundName, chainTop, chainSegments, propsOf, returnedObject, viewsOf, actionsOf } from "./mst-chain";
 
 // `t` is the conventional import alias, but any alias works — detect the real
 // one from the import declaration.
 const MST_SPECIFIER = "mobx-state-tree";
 
-// Type builders that take NO type argument and resolve to a primitive.
-const PRIMITIVE_BUILDERS = new Set(["boolean", "string", "number"]);
-
-// Builders that take a single inner type argument node.
-const UNARY_BUILDERS = new Map([
-	["optional", (inner) => `${inner}?`],
-	["maybeNull", (inner) => `${inner}?`],
-	["nullable", (inner) => `${inner}?`],
-	["array", (inner) => `${inner}[]`],
-	["late", (inner) => inner],
-]);
-
 const detect = (text) =>
-	/from\s*["'][^"']*mobx-state-tree["']/.test(text) || /\bt\.model\s*\(/.test(text);
+	/from\s*["'][^"']*mobx-state-tree["']/.test(text) || /\bt\.model\s*\(/.test(text) || /\bt\.compose\s*\(/.test(text);
 
 // Name of the identifier the file imports mobx-state-tree as (null if absent).
 // Handles `import { types as t }`, `import * as t`, and `import t = require(...)`.
@@ -67,47 +57,7 @@ const lineOf = (node, sourceFile, atEnd = false) => {
 	return line;
 };
 
-// Canonical type of one model property initializer.
-const canonicalMemberType = (initializer) => {
-	const k = initializer.getKind();
-
-	// `t.boolean`, `t.string`, `t.number` — bare or property-access.
-	if (k === SyntaxKind.Identifier || k === SyntaxKind.PropertyAccessExpression) {
-		const name = k === SyntaxKind.Identifier ? initializer.getText() : call(initializer, "getName");
-		if (PRIMITIVE_BUILDERS.has(name)) return name;
-	}
-
-	// `t.array(t.string())`, `t.maybeNull(t.string())`, ...
-	if (k === SyntaxKind.CallExpression) {
-		const expr = call(initializer, "getExpression");
-		const name = expr && expr.getKind() === SyntaxKind.PropertyAccessExpression ? call(expr, "getName") : expr && expr.getKind() === SyntaxKind.Identifier ? expr.getText() : null;
-		const args = call(initializer, "getArguments") || [];
-
-		// `t.string()`, `t.boolean()` — primitive builder called with no args.
-		if (name && PRIMITIVE_BUILDERS.has(name) && args.length === 0) return name;
-
-		if (name && UNARY_BUILDERS.has(name) && args.length >= 1) {
-			const inner = canonicalMemberType(args[0]);
-
-			return UNARY_BUILDERS.get(name)(inner || "object");
-		}
-		// `t.frozen<T>()`, `t.enumeration<T>([...])`, `passthrough<T>(...)` —
-		// the first TYPE argument is the payload type.
-		const typeArgs = call(initializer, "getTypeArguments") || [];
-		if (typeArgs.length) {
-			const ta = typeArgs[0];
-			const ref = ta.getKind() === SyntaxKind.TypeReference ? call(ta, "getText") : null;
-
-			return ref || "object";
-		}
-	}
-
-	// `t.optional(t.string(), "")` is covered above; fall back to the raw
-	// canonical text for anything exotic.
-	const text = initializer.getText();
-
-	return text.replace(/\s+/g, " ").trim() || "object";
-};
+// Canonical member types live in mst-types.ts (shared with the chain extractor).
 
 // Find every `t.model("Name", { ... })` call bound to a variable.
 const findModels = (sourceFile) => {
@@ -146,16 +96,102 @@ const findModels = (sourceFile) => {
 	return out;
 };
 
+// Find every `t.compose("Name", A, B, ...)` call bound to a variable. The
+// identifier arguments are the composed BASE models (heritage), the string is
+// the model name. Chained `.props/.views/.actions` on the result are folded in
+// by collectChain below.
+const findComposes = (sourceFile) => {
+	const modName = mstImportName(sourceFile);
+	const out = [];
+	sourceFile.forEachDescendant((node) => {
+		if (node.getKind() !== SyntaxKind.CallExpression) return;
+		const expr = call(node, "getExpression");
+		if (!expr || expr.getKind() !== SyntaxKind.PropertyAccessExpression) return;
+		if (call(expr, "getName") !== "compose") return;
+		const owner = call(expr, "getExpression");
+		if (owner && owner.getKind() === SyntaxKind.Identifier && modName && owner.getText() !== modName) return;
+		const args = call(node, "getArguments") || [];
+		const nameArg = args[0] && args[0].getKind() === SyntaxKind.StringLiteral ? args[0] : null;
+		const bases = args.slice(nameArg ? 1 : 0).filter((a) => a.getKind() === SyntaxKind.Identifier).map((a) => a.getText());
+		const varName = boundName(node);
+		if (!varName || bases.length === 0) return;
+		out.push({ name: varName, modelName: nameArg ? nameArg.getText().replace(/^["']|["']$/g, "") : varName, bases, node });
+	});
+
+	return out;
+};
+
+// A chained EXTENSION bound to its own variable: `const Auditable = Entity
+// .props({...}).views(...)` — the root is another model (an Identifier or a
+// t.model/t.compose call), and the new binding is a distinct entity whose
+// heritage is that root. Collect the chain's own segments (not the root's).
+const findExtensions = (sourceFile, knownNames) => {
+	const out = [];
+	sourceFile.forEachDescendant((node) => {
+		if (node.getKind() !== SyntaxKind.VariableDeclaration) return;
+		const name = call(node, "getName");
+		const init = call(node, "getInitializer");
+		if (!name || !init || init.getKind() !== SyntaxKind.CallExpression) return;
+		if (knownNames.has(name)) return;
+		// Walk down the chain to its root expression.
+		let cur = init;
+		let hasSegment = false;
+		while (cur && cur.getKind() === SyntaxKind.CallExpression) {
+			const expr = call(cur, "getExpression");
+			if (!expr || expr.getKind() !== SyntaxKind.PropertyAccessExpression) break;
+			const seg = call(expr, "getName");
+			if (seg !== "props" && seg !== "views" && seg !== "actions") break;
+			hasSegment = true;
+			cur = call(expr, "getExpression");
+		}
+		if (!hasSegment || !cur) return;
+		// The root must be a known model identifier or a t.model/t.compose call.
+		let rootName = null;
+		if (cur.getKind() === SyntaxKind.Identifier) rootName = cur.getText();
+		else if (cur.getKind() === SyntaxKind.CallExpression) {
+			const expr = call(cur, "getExpression");
+			const owner = expr && expr.getKind() === SyntaxKind.PropertyAccessExpression ? call(expr, "getExpression") : null;
+			if (owner && owner.getKind() === SyntaxKind.Identifier) rootName = boundName(cur) ?? owner.getText();
+		}
+		if (!rootName || !knownNames.has(rootName)) return;
+		out.push({ name, rootName, node: init });
+	});
+
+	return out;
+};
+
+// Fold a chain's `.props/.views/.actions` segments into one shape. The chain
+// root may be a `t.model` (already extracted) or a `t.compose` (bases only);
+// either way the segments add properties, read-only views and action methods.
+const collectChain = (innerNode) => {
+	const properties = [];
+	const methods = [];
+	for (const seg of chainSegments(chainTop(innerNode))) {
+		if (seg.kind === "props") {
+			const arg = (call(seg.node, "getArguments") || [])[0];
+			if (arg && arg.getKind() === SyntaxKind.ObjectLiteralExpression) properties.push(...propsOf(arg));
+			continue;
+		}
+		const obj = returnedObject(seg.node);
+		if (!obj) continue;
+		if (seg.kind === "views") properties.push(...viewsOf(obj));
+		else methods.push(...actionsOf(obj));
+	}
+
+	return { properties, methods };
+};
+
 const normalize = (entities, ctx) => {
 	const sourceFile = ctx.sourceFile;
 	if (!sourceFile) return entities;
 
 	const models = findModels(sourceFile);
-	if (models.length === 0) return entities;
+	const composes = findComposes(sourceFile);
+	if (models.length === 0 && composes.length === 0) return entities;
 
 	// The base normalizer may have extracted the same object literal as a
 	// plain "object" entity — drop those in favor of the canonical mst ones.
-	const modelNames = new Set(models.map((m) => m.name));
+	const modelNames = new Set([...models.map((m) => m.name), ...composes.map((c) => c.name)]);
 	const out = entities.filter((e) => {
 		if (e.framework === "mst") return false;
 		if (e.kind === "object" && !e.framework && modelNames.has(e.name)) return false;
@@ -163,22 +199,13 @@ const normalize = (entities, ctx) => {
 	});
 	const seen = new Set();
 
-	for (const { name, modelName, objectLiteral, node } of models) {
-		const properties = [];
-		for (const prop of call(objectLiteral, "getProperties") || []) {
-			if (prop.getKind() !== SyntaxKind.PropertyAssignment) continue;
-			const pName = call(prop, "getName");
-			const init = call(prop, "getInitializer");
-			if (!pName || !init) continue;
-			properties.push({ name: pName, type: canonicalMemberType(init) });
-		}
-		if (properties.length === 0) continue;
+	const push = (name, modelName, node, properties, methods, bases) => {
+		if (properties.length === 0 && methods.length === 0 && bases.length === 0) return;
 		const line = lineOf(node, sourceFile);
 		const endLine = lineOf(node, sourceFile, true);
 		const key = `${sourceFile.getFilePath()}|${line}|${name}`;
-		if (seen.has(key)) continue;
+		if (seen.has(key)) return;
 		seen.add(key);
-
 		out.push({
 			id: `${sourceFile.getFilePath()}#${name}`,
 			name,
@@ -188,23 +215,62 @@ const normalize = (entities, ctx) => {
 			endLine,
 			exported: false,
 			properties,
-			methods: [],
+			methods,
 			constructors: [],
-			extends: null,
+			// Composition IS MST's heritage: the base models it composes.
+			extends: bases.length === 1 ? bases[0] : bases.length > 1 ? bases : null,
 			implements: [],
 			uses: [],
 			imports: [...ctx.imports],
 			framework: "mst",
-			complexity: properties.length,
+			complexity: properties.length + methods.length,
 			modelName,
 			storeModel: true,
 		});
+	};
+
+	for (const { name, modelName, objectLiteral, node } of models) {
+		const own = propsOf(objectLiteral);
+		// A model may itself be chained: `Entity.props({...}).views(...)`.
+		const chain = collectChain(node);
+		push(name, modelName, node, [...own, ...chain.properties], chain.methods, []);
+	}
+	for (const { name, modelName, bases, node } of composes) {
+		const chain = collectChain(node);
+		// An INLINE `types.model({...})` argument contributes its own props too
+		// (e.g. TreeNode's recursive `children`/`parentId` alongside BaseNode).
+		const inlineProps = [];
+		const args = call(node, "getArguments") || [];
+		for (const arg of args) {
+			if (arg.getKind() !== SyntaxKind.CallExpression) continue;
+			const expr = call(arg, "getExpression");
+			if (!expr || expr.getKind() !== SyntaxKind.PropertyAccessExpression || call(expr, "getName") !== "model") continue;
+			// `types.model({...})` (one arg) or `types.model("Name", {...})` (two).
+			const modelArgs = call(arg, "getArguments") || [];
+			const shape = modelArgs.find((a) => a.getKind() === SyntaxKind.ObjectLiteralExpression);
+			if (shape) inlineProps.push(...propsOf(shape));
+		}
+		push(name, modelName, node, [...inlineProps, ...chain.properties], chain.methods, bases);
+	}
+	// Chained extensions bound to new variables (Entity.props(...) as Auditable):
+	// each is its own entity with the root model as heritage. Iterate to a fixed
+	// point so a chain of extensions (A → B → C) all resolve.
+	let known = new Set(modelNames);
+	for (;;) {
+		const exts = findExtensions(sourceFile, known);
+		const fresh = exts.filter((e) => !known.has(e.name));
+		if (fresh.length === 0) break;
+		for (const { name, rootName, node } of fresh) {
+			const chain = collectChain(node);
+			push(name, name, node, chain.properties, chain.methods, [rootName]);
+			known.add(name);
+		}
 	}
 
 	// `type X = Instance<typeof Model>` aliases are the store's GENERATED
 	// instance type — not a hand-written shape. Tag them so the store-linked
 	// filter can drop pairs involving them.
-	const modelVars = new Set(models.map((m) => m.name));
+	const modelVars = new Set(modelNames);
 	for (const e of out) {
 		if (e.kind !== "type" || e.aliasOf) continue;
 		const m = e.typeText && e.typeText.match(/^Instance<\s*typeof\s+([A-Za-z0-9_$.]+)/);
