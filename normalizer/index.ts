@@ -292,9 +292,16 @@ const extractClassLike = (node, { name, exported, sourceFile, isInterface }) => 
 		if (mk === SyntaxKind.MethodDeclaration || mk === SyntaxKind.MethodSignature) {
 			const mName = call(member, "getName");
 			if (!mName) continue;
-			const params = (call(member, "getParameters") || []).map((p) => call(p, "getName") || "");
+			const paramNodes = call(member, "getParameters") || [];
+			const params = paramNodes.map((p) => call(p, "getName") || "");
+			// Parameter TYPES are the signature; names are local labels. Capture
+			// both so `f(id: string)` ≡ `f(ticketId: string)` compares equal.
+			const paramTypes = paramNodes.map((p) => {
+				const tn = call(p, "getTypeNode");
+				return tn ? canon(tn, "object") : "object";
+			});
 			const typeNode = call(member, "getReturnType");
-			methods.push({ name: mName, params, returnType: typeNode ? canon(typeNode, "void") : "void", line: lineOf(member, sourceFile) });
+			methods.push({ name: mName, params, paramTypes, returnType: typeNode ? canon(typeNode, "void") : "void", line: lineOf(member, sourceFile) });
 			continue;
 		}
 		// A getter (`get darkMode(): boolean`) is a READ-ONLY PROPERTY to a reader of
@@ -424,9 +431,14 @@ const extractTypeAlias = (node, { name, exported, sourceFile }) => {
 			} else if (mk === SyntaxKind.MethodSignature) {
 				const mName = call(member, "getName");
 				if (!mName) continue;
-				const params = (call(member, "getParameters") || []).map((p) => call(p, "getName") || "");
+				const paramNodes = call(member, "getParameters") || [];
+				const params = paramNodes.map((p) => call(p, "getName") || "");
+				const paramTypes = paramNodes.map((p) => {
+					const tn = call(p, "getTypeNode");
+					return tn ? canonicalType(tn) || "object" : "object";
+				});
 				const rtNode = call(member, "getReturnType");
-				methods.push({ name: mName, params, returnType: rtNode ? canonicalType(rtNode) || "void" : "void", line: lineOf(member, sourceFile) });
+				methods.push({ name: mName, params, paramTypes, returnType: rtNode ? canonicalType(rtNode) || "void" : "void", line: lineOf(member, sourceFile) });
 			}
 		}
 	} else if (k === SyntaxKind.TypeReference && (call(typeNode, "getTypeArguments") || []).length === 0) {

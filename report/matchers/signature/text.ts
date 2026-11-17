@@ -14,9 +14,10 @@ const text = (model) => {
 		lines.push(`name ${pct(model.name.score)}  ${model.name.left.name} ↔ ${model.name.right.name}${common}`);
 	}
 	if (model.sharedCount > 0) {
-		lines.push(`${pct(model.score)}  ${model.matchingCount}/${model.sharedCount} shared method(s) match in signature`);
+		lines.push(`${pct(model.score)}  ${model.matchingCount}/${model.sharedCount} corresponding method(s) match in signature`);
 		for (const row of model.rows) {
-			lines.push(`${row.same ? "≡" : "≠"} ${row.left.key}  ↔  ${row.right.key}`);
+			const rename = row.renamed ? ` (${row.name} ↔ ${row.renamed} ${pct(row.sim ?? 0)})` : "";
+			lines.push(`${row.same ? "≡" : "≠"} ${row.left.key}  ↔  ${row.right.key}${rename}`);
 		}
 	}
 

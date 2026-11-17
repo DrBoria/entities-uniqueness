@@ -1,12 +1,14 @@
 "use strict";
 
-// The SIGNATURE model: the entity NAME plus, for methods the two entities share
-// by name, whether the parameter lists and return types agree. A name is part of
-// a signature, so the entity names are the first row here (there is no separate
-// Name group). One row per shared method, `same` when the canonical signature key
-// matches.
+// The SIGNATURE model: the entity NAME plus, for methods the two entities
+// CORRESPOND on (exact name or near-miss rename — the same pairing the methods
+// matcher uses), whether the parameter TYPES and return types agree. A name is
+// part of a signature, so the entity names are the first row here (there is no
+// separate Name group). One row per corresponding method, `same` when the
+// canonical shape key matches.
 
-import { score, sigKey } from "../../../matcher/signature";
+import { score, sigKey, shapesAgree } from "../../../matcher/signature";
+import { pairMethods } from "../../../matcher/method-pairs";
 import { score as nameScore, tokenize } from "../../../matcher/name";
 
 const byName = (methods) => {
@@ -20,19 +22,22 @@ const build = (left, right, opts = {}) => {
 	if (!left || !right) return null;
 	const A = byName(left.methods);
 	const B = byName(right.methods);
-	const rows = [];
-	for (const [name, a] of A) {
-		const b = B.get(name);
-		if (!b) continue;
+	const pairs = pairMethods(new Set(A.keys()), new Set(B.keys()));
+	const rows = pairs.map((p) => {
+		const a = A.get(p.left);
+		const b = B.get(p.right);
 		const ka = sigKey(a);
 		const kb = sigKey(b);
-		rows.push({
-			name,
-			left: { key: ka, params: a.params ?? [], returnType: a.returnType ?? "", ...(a.line ? { line: a.line } : {}) },
-			right: { key: kb, params: b.params ?? [], returnType: b.returnType ?? "", ...(b.line ? { line: b.line } : {}) },
-			same: ka === kb,
-		});
-	}
+
+		return {
+			name: p.left,
+			left: { key: ka, params: a.params ?? [], paramTypes: a.paramTypes ?? [], returnType: a.returnType ?? "", ...(a.line ? { line: a.line } : {}) },
+			right: { key: kb, params: b.params ?? [], paramTypes: b.paramTypes ?? [], returnType: b.returnType ?? "", ...(b.line ? { line: b.line } : {}) },
+			same: shapesAgree(a, b),
+			sim: p.sim,
+			...(p.exact ? {} : { renamed: p.right }),
+		};
+	});
 	const signal = score(left, right, opts);
 
 	// The entity-name comparison (tokens + edit distance) lives inside Signature.
