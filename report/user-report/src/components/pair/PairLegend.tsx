@@ -43,12 +43,12 @@ export const PairLegend = ({ mode, pair, decision }) => {
 	return (
 		<Legend>
 			<span>
-				<Dot $c={pairTheme.band.same} /> red = the two lines are character-for-character identical
+				<Dot $c={pairTheme.band.same} /> red = duplicate · no % = 100% · with % = a partial duplicate at that percent
 			</span>
 			<span>
-				<Dot $c={pairTheme.band.diff} /> green = the members correspond, their text differs
+				<Dot $c={pairTheme.band.diff} /> green = a member on one side only (100% unique), drawn as a short stub
 			</span>
-			<span>a short stub = a member on one side only · no ribbon = nothing compared here</span>
+			<span>no ribbon = nothing compared here</span>
 			{name ? (
 				<span title="tokens both names share" style={{ color: pairTheme.chrome.text }}>
 					name {percent(name.score)}

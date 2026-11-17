@@ -13,7 +13,7 @@
 // the always-on `name` bonus in the decision-maker, not a tab.
 
 import { DEFAULT_TUNING } from "../tuning";
-import { pairMethods } from "./method-pairs";
+import { correspondMethods } from "./method-pairs";
 import { typesAgree } from "./type-key";
 
 /** The shape key of a method: parameter TYPES (not names) + return type. */
@@ -44,7 +44,7 @@ const score = (a, b, opts: any = {}) => {
 	const bmap = new Map<string, any>((b.methods || []).map((m) => [m.name, m]));
 	// Correspondence = the methods matcher's pairing (exact first, near misses
 	// graded). A renamed method is still compared on its signature.
-	const pairs = pairMethods(new Set(amap.keys()), new Set(bmap.keys()));
+	const { pairs } = correspondMethods(new Set(amap.keys()), new Set(bmap.keys()));
 	const shared = pairs.length;
 	let match = 0;
 	for (const p of pairs) {

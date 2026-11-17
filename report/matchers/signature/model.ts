@@ -8,7 +8,7 @@
 // canonical shape key matches.
 
 import { score, sigKey, shapesAgree } from "../../../matcher/signature";
-import { pairMethods } from "../../../matcher/method-pairs";
+import { correspondMethods } from "../../../matcher/method-pairs";
 import { score as nameScore, tokenize } from "../../../matcher/name";
 
 const byName = (methods) => {
@@ -22,7 +22,7 @@ const build = (left, right, opts = {}) => {
 	if (!left || !right) return null;
 	const A = byName(left.methods);
 	const B = byName(right.methods);
-	const pairs = pairMethods(new Set(A.keys()), new Set(B.keys()));
+	const { pairs } = correspondMethods(new Set(A.keys()), new Set(B.keys()));
 	const rows = pairs.map((p) => {
 		const a = A.get(p.left);
 		const b = B.get(p.right);

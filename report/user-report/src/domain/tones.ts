@@ -1,9 +1,10 @@
 "use strict";
 
 // The colour keys code-diff paints with. The MODEL owns the colours (the pair
-// theme); code-diff only receives them. One tone per lane state: `same` for a
-// correspondence, `differs` for a row that breaks it, each with a stronger `hot`
-// fill for the lane under the pointer.
+// theme); code-diff only receives them. THE COLOR MODEL: `same` (red) is a
+// duplicate at ANY percent — the lane's label carries the percent when it is
+// partial; `differs` (green) is a member on ONE side only (100% unique, a stub
+// lane). Each has a stronger `hot` fill for the lane under the pointer.
 
 import { pairTheme } from "../components/pair/theme";
 

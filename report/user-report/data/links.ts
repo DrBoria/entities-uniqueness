@@ -21,53 +21,63 @@
 
 import { wordOf } from "./word";
 import { valuesLinks } from "./values-links";
+import { typesAgree } from "../../../matcher/type-key";
 
-// One link per shared member of a model. `key` disambiguates members that share
-// a name: a property pairs by name+type, a method by name+signature. `line` is
-// the declaration line the parser reported (the view's anchor hint).
-const memberLinks = (model, kind, label, keyOf, nameOf?) => {
+// THE COLOR MODEL: a correspondence is a DUPLICATE — red, with the percent it
+// is a duplicate at. No percent = 100%. Green is reserved for a member that
+// exists on ONE side only (100% unique), drawn as a stub lane.
+const pctLabel = (word, degree) => (degree >= 1 ? word : `${word} · ${Math.round(degree * 100)}%`);
+
+// One link per member of a model. Shared members are red at their degree;
+// one-sided members are green stubs (the absent side's name simply does not
+// locate, so resolveLanes keeps one end). `line` is the declaration line the
+// parser reported (the view's anchor hint).
+const memberLinks = (model, kind, word, keyOf, degreeOf) => {
 	if (!model || !model.rows) return [];
 	const links = [];
 	for (const member of model.rows) {
-		if (!member.shared) continue;
-		const leftName = nameOf ? nameOf(member.left, member) : member.name;
-		const rightName = nameOf ? nameOf(member.right, member) : member.name;
+		const leftName = member.left?.name ?? member.name;
+		const rightName = member.right?.name ?? member.name;
 		if (!leftName || !rightName) continue;
+		const shared = member.shared === true;
 		links.push({
 			connectionId: `same:${kind}:${member.name}`,
-			label,
-			tone: member.same === false ? "differs" : "same",
+			label: shared ? pctLabel(word, degreeOf(member)) : word,
+			tone: shared ? "same" : "differs",
 			leftColumn: "0",
 			rightColumn: "1",
-			left: { name: leftName, key: keyOf ? keyOf(member.left) : member.name, ...(member.left?.line ? { line: member.left.line } : {}) },
-			right: { name: rightName, key: keyOf ? keyOf(member.right) : member.name, ...(member.right?.line ? { line: member.right.line } : {}) },
+			left: { name: leftName, key: keyOf && member.left ? keyOf(member.left) : leftName, ...(member.left?.line ? { line: member.left.line } : {}) },
+			right: { name: rightName, key: keyOf && member.right ? keyOf(member.right) : rightName, ...(member.right?.line ? { line: member.right.line } : {}) },
 		});
 	}
 
 	return links;
 };
 
-const propertyLinks = (model) => memberLinks(model, "property", wordOf("properties", model?.sharedCount ?? 0), (p) => `${p?.name ?? ""}:${p?.type ?? ""}`);
+// A property pairs on two facts: its name and its type. Name shared + type
+// shared = 100%; name shared + type differs = 50% — a partial duplicate, red.
+const propertyLinks = (model) => memberLinks(model, "property", wordOf("properties", 1), (p) => `${p?.name ?? ""}:${p?.type ?? ""}`, (m) => (m.same ? 1 : 0.5));
 
 // Methods: highlight the method NAME on its declaration line. A near-miss
-// rename (`fetchTicket` ↔ `fetchTirket`) is a shared row at its similarity, so
-// its link names EACH side's own spelling — the view anchors both words.
+// rename (`fetchTicket` ↔ `fetchTirket`) is a partial duplicate at its edit
+// similarity — red with that percent; each side anchors its own spelling.
+// A method on one side only is a green stub (unique).
 const methodLinks = (model) => {
 	if (!model || !model.rows) return [];
 	const links = [];
 	for (const member of model.rows) {
-		if (!member.shared || !member.left || !member.right) continue;
-		const leftName = member.left.name;
-		const rightName = member.right.name;
+		const leftName = member.left?.name ?? member.name;
+		const rightName = member.right?.name ?? member.name;
 		if (!leftName || !rightName) continue;
+		const shared = member.shared === true;
 		links.push({
 			connectionId: `same:method:${member.name}`,
-			label: wordOf("methods", model.sharedCount ?? 0),
-			tone: member.same === false ? "differs" : "same",
+			label: shared ? pctLabel(wordOf("methods", 1), member.sim ?? 1) : wordOf("methods", 1),
+			tone: shared ? "same" : "differs",
 			leftColumn: "0",
 			rightColumn: "1",
-			left: { name: leftName, key: leftName, ...(member.left.line ? { line: member.left.line } : {}) },
-			right: { name: rightName, key: rightName, ...(member.right.line ? { line: member.right.line } : {}) },
+			left: { name: leftName, key: leftName, ...(member.left?.line ? { line: member.left.line } : {}) },
+			right: { name: rightName, key: rightName, ...(member.right?.line ? { line: member.right.line } : {}) },
 		});
 	}
 
@@ -101,6 +111,19 @@ const signaturePart = (m) => {
 	return returnTypeName(m.returnType);
 };
 
+// A signature's degree: the fraction of its shape facts (each parameter type
+// position + the return type) that agree. All agree = 100% (no percent shown).
+const signatureDegree = (row) => {
+	if (row.same) return 1;
+	const ta = row.left?.paramTypes ?? row.left?.params ?? [];
+	const tb = row.right?.paramTypes ?? row.right?.params ?? [];
+	const total = Math.max(ta.length, tb.length) + 1;
+	let hit = typesAgree(row.left?.returnType ?? "void", row.right?.returnType ?? "void") ? 1 : 0;
+	for (let i = 0; i < Math.min(ta.length, tb.length); i += 1) if (typesAgree(ta[i], tb[i])) hit += 1;
+
+	return hit / total;
+};
+
 const signatureLinks = (model) => {
 	if (!model || !model.rows) return [];
 	const links = [];
@@ -110,8 +133,8 @@ const signatureLinks = (model) => {
 		if (!leftPart || !rightPart) continue;
 		links.push({
 			connectionId: `same:signature:${row.name}`,
-			label: wordOf("signatures", model.sharedCount ?? 0),
-			tone: row.same ? "same" : "differs",
+			label: pctLabel(wordOf("signatures", 1), signatureDegree(row)),
+			tone: "same",
 			leftColumn: "0",
 			rightColumn: "1",
 			left: { name: leftPart, key: row.left?.key ?? row.name, ...(row.left?.line ? { line: row.left.line } : {}) },
@@ -122,8 +145,8 @@ const signatureLinks = (model) => {
 	if (model.name && model.name.hasEvidence) {
 		links.push({
 			connectionId: "same:signature:name",
-			label: wordOf("entity names", 1),
-			tone: model.name.score >= 1 ? "same" : "differs",
+			label: pctLabel(wordOf("entity names", 1), model.name.score),
+			tone: "same",
 			leftColumn: "0",
 			rightColumn: "1",
 			left: { name: model.name.left.name },
@@ -162,6 +185,7 @@ const inheritanceLinks = (model, leftEntity, rightEntity) => {
 			links.push({
 				connectionId: `same:inheritance:${base}`,
 				label,
+				tone: "same",
 				leftColumn: "0",
 				rightColumn: "1",
 				left: { name: base },

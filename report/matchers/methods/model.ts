@@ -8,7 +8,7 @@
 // not dropped: `fetchTicket` ↔ `fetchTirket` is a shared row at its similarity,
 // so the Methods tab paints the correspondence instead of reading 0%.
 
-import { score, pairMethods } from "../../../matcher/methods";
+import { score, correspondMethods } from "../../../matcher/methods";
 
 const byName = (methods) => {
 	const map = new Map();
@@ -23,9 +23,10 @@ const build = (left, right, opts = {}) => {
 	if (!left || !right) return null;
 	const A = byName(left.methods);
 	const B = byName(right.methods);
-	// One-to-one correspondence: exact names first, then near misses (the same
-	// pairing the score uses, so the rows and the number never disagree).
-	const pairs = pairMethods(new Set(A.keys()), new Set(B.keys()));
+	// The FULL correspondence the score grades: exact names, then a uniform
+	// ceremony prefix, then near misses — so the rows and the number never
+	// disagree (a prefix rename is a shared row at 85%, not two "unique" stubs).
+	const { pairs } = correspondMethods(new Set(A.keys()), new Set(B.keys()));
 	const pairedLeft = new Set(pairs.map((p) => p.left));
 	const pairedRight = new Set(pairs.map((p) => p.right));
 	const rows = pairs.map((p) => {

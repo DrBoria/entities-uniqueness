@@ -69,4 +69,69 @@ const pairMethods = (A: ReadonlySet<string>, B: ReadonlySet<string>, floor = NEA
 /** Weighted intersection of the pairs (exact = 1, near miss = its similarity). */
 const pairedWeight = (pairs: readonly MethodPair[]): number => pairs.reduce((sum, p) => sum + p.sim, 0);
 
-export { pairMethods, pairedWeight, simOf, NEAR_MISS_FLOOR };
+// ── Ceremony prefix ─────────────────────────────────────────────────────────
+// A uniform leading prefix on EVERY method of one side
+// (`internalRepositoryFetchCustomer` vs `fetchCustomer`) hides an otherwise
+// identical method set. The prefix must be substantial (≥4 chars) and present
+// on EVERY method of that side. The suffix match is case-insensitive on the
+// first letter (camelCase boundary). Returned as PAIRS at PREFIX_SIM so the
+// rows/links show the correspondence the score already counts.
+
+const PREFIX_SIM = 0.85;
+
+const decap = (s: string): string => (s ? s[0].toLowerCase() + s.slice(1) : s);
+
+const endsWithCI = (name: string, target: string): boolean => {
+	if (name.length <= target.length) return false;
+	const tail = name.slice(name.length - target.length);
+	return tail[0].toLowerCase() + tail.slice(1) === target[0].toLowerCase() + target.slice(1);
+};
+
+/** One-to-one prefix pairs: strip a shared prefix from one side, match exactly. */
+const prefixPairs = (A: ReadonlySet<string>, B: ReadonlySet<string>): { pairs: MethodPair[]; prefix: string; side: "a" | "b" } | null => {
+	const a = [...A];
+	const b = [...B];
+	if (a.length === 0 || b.length === 0 || a.length !== b.length) return null;
+	const trySide = (names: string[], targets: string[], side: "a" | "b") => {
+		const targetSet = new Set(targets);
+		const candidates = new Set<string>();
+		for (const name of names) {
+			for (const target of targets) {
+				if (endsWithCI(name, target)) {
+					const prefix = name.slice(0, name.length - target.length);
+					if (prefix.length >= 4) candidates.add(prefix);
+				}
+			}
+		}
+		for (const prefix of candidates) {
+			const stripped = names.map((n) => (n.startsWith(prefix) ? decap(n.slice(prefix.length)) : n));
+			if (!stripped.every((n) => targetSet.has(n))) continue;
+			const pairs: MethodPair[] = names.map((n, i) => {
+				const own = stripped[i] ?? n;
+				return side === "a" ? { left: n, right: own, sim: PREFIX_SIM, exact: false } : { left: own, right: n, sim: PREFIX_SIM, exact: false };
+			});
+			return { pairs, prefix, side };
+		}
+
+		return null;
+	};
+
+	return trySide(a, b, "a") ?? trySide(b, a, "b");
+};
+
+/** The FULL correspondence: exact names, then a uniform ceremony prefix, then
+ *  near misses. This is what the score grades AND what the report draws — the
+ *  number and the picture never disagree. */
+const correspondMethods = (A: ReadonlySet<string>, B: ReadonlySet<string>): { pairs: MethodPair[]; prefix: string | null } => {
+	const exact = pairMethods(A, B);
+	const exactWeight = pairedWeight(exact);
+	const uni = A.size + B.size - exactWeight;
+	const j = uni === 0 ? 0 : exactWeight / uni;
+	if (j > 0) return { pairs: exact, prefix: null };
+	const prefixed = prefixPairs(A, B);
+	if (prefixed !== null) return { pairs: prefixed.pairs, prefix: prefixed.prefix };
+
+	return { pairs: exact, prefix: null };
+};
+
+export { pairMethods, pairedWeight, simOf, NEAR_MISS_FLOOR, prefixPairs, correspondMethods, PREFIX_SIM };

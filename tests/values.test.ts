@@ -169,12 +169,21 @@ describe("closed value sets (enum ↔ union) carry linkable text", () => {
 		}
 	});
 
-	it("a value present on only one side has no link and no phantom text", () => {
+	it("a value present on only one side is a GREEN stub (unique), never phantom text on the other", () => {
 		const model = build(left, { name: "Other", values: ["created", "lost"] }, {});
 		const lost = model.rows.find((r) => r.name === "lost");
 		expect(lost.shared).toBe(false);
 		expect(lost.left).toBeNull();
 		expect(lost.right).toEqual({ text: "lost" });
-		expect(valuesLinks(model).map((l) => l.left.name)).toEqual(["created"]);
+		const links = valuesLinks(model);
+		const created = links.find((l) => l.connectionId === "same:value:created");
+		const lostLink = links.find((l) => l.connectionId === "same:value:lost");
+		// The shared value is a red duplicate; the one-sided value is a green
+		// stub: ONLY its own side carries an anchor — the absent side is null
+		// (resolveLanes adds the inter-line gap end, no phantom twin).
+		expect(created.tone).toBe("same");
+		expect(lostLink.tone).toBe("differs");
+		expect(lostLink.left).toBeNull();
+		expect(lostLink.right.name).toBe("lost");
 	});
 });

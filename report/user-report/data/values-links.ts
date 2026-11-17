@@ -46,19 +46,27 @@ const anchorOf = (side, row, lines) => {
 	return { name: text, key: `${path}:${side}`, ...(line === undefined ? {} : { line }) };
 };
 
-/** One link per shared leaf of the Values model, anchored on the value text. */
+/** One link per leaf of the Values model, anchored on the value text. A shared
+ *  leaf is a duplicate (red): identical text = 100%, paired-but-different text
+ *  = 50% (the correspondence holds, the content does not). A leaf on one side
+ *  only is unique (green stub). */
 const valuesLinks = (model, leftSpan, rightSpan) => {
 	if (!model || !model.rows) return [];
-	const label = wordOf("values", model.sharedCount ?? 0);
+	const word = wordOf("values", 1);
 	const leftLines = linesOfLeaves(model.leftTree ?? null, leftSpan);
 	const rightLines = linesOfLeaves(model.rightTree ?? null, rightSpan);
 	const links = [];
 	for (const row of model.rows) {
-		if (!row.shared) continue;
 		const left = anchorOf("left", row, leftLines);
 		const right = anchorOf("right", row, rightLines);
-		if (!left || !right) continue;
-		links.push({ connectionId: `same:value:${row.name}`, label, tone: row.same ? "same" : "differs", leftColumn: "0", rightColumn: "1", left, right });
+		if (!left && !right) continue;
+		const shared = row.shared === true;
+		const degree = row.same ? 1 : 0.5;
+		const label = shared ? (degree >= 1 ? word : `${word} · ${Math.round(degree * 100)}%`) : word;
+		// A one-sided leaf keeps ONLY its own end: the absent side must not
+		// borrow the present end's anchor (that would locate a false twin and
+		// hide the inter-line continuation). resolveLanes adds the gap end.
+		links.push({ connectionId: `same:value:${row.name}`, label, tone: shared ? "same" : "differs", leftColumn: "0", rightColumn: "1", left, right });
 	}
 
 	return links;
