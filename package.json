@@ -1,6 +1,6 @@
 {
   "name": "@md-code/entities-uniqueness",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "ESLint rule + CLI that finds duplicate entities (classes, interfaces, object shapes, constructor functions) sharing the same members across the codebase \u2014 they should be declared once.",
   "license": "Apache-2.0",
   "author": "DrBoria <dr.boria@gmail.com>",
