@@ -1,0 +1,41 @@
+{
+	"compilerOptions": {
+		"target": "ES2022",
+		"module": "CommonJS",
+		"moduleResolution": "Node",
+		"jsx": "react-jsx",
+		"strict": false,
+		"noImplicitAny": false,
+		"esModuleInterop": true,
+		"allowSyntheticDefaultImports": true,
+		"resolveJsonModule": true,
+		"declaration": true,
+		"outDir": "dist",
+		"rootDir": ".",
+		"skipLibCheck": true,
+		"forceConsistentCasingInFileNames": true,
+		"types": ["node"]
+	},
+	"include": [
+		"constants.ts",
+		"evidence.ts",
+		"tuning.ts",
+		"logger.ts",
+		"utils.ts",
+		"config.ts",
+		"decision-maker.ts",
+		"suggester.ts",
+		"tree-builder.ts",
+		"self-catalog.ts",
+		"main.ts",
+		"index.ts",
+		"plugin.ts",
+		"report.ts",
+		"matcher/**/*.ts",
+		"normalizer/**/*.ts",
+		"frameworks/**/*.ts",
+		"filter/**/*.ts",
+		"report/**/*.ts"
+	],
+	"exclude": ["node_modules", "dist", "tests", "reports", "report/user-report/src"]
+}

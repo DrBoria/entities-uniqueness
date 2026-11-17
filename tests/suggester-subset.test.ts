@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { suggest } = require("../suggester.js");
+const { suggest } = require("../dist/suggester.js");
 
 // Build a synthetic entity member with the shape the suggester consumes.
 // A shared method is included so the cluster bypasses the shared-type branch

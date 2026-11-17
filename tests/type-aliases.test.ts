@@ -3,11 +3,11 @@ import { createRequire } from "node:module";
 import path from "node:path";
 
 const require = createRequire(import.meta.url);
-const main = require("../main.js");
-const normalizer = require("../normalizer/index.js");
-const { normalizeEntities } = require("../frameworks/entrypoint.js");
-const { matchSignals } = require("../matcher/index.js");
-const { decide } = require("../decision-maker.js");
+const main = require("../dist/main.js");
+const normalizer = require("../dist/normalizer/index.js");
+const { normalizeEntities } = require("../dist/frameworks/entrypoint.js");
+const { matchSignals } = require("../dist/matcher/index.js");
+const { decide } = require("../dist/decision-maker.js");
 
 const pluginDir = path.resolve(__dirname, "..");
 const ENTITIES_ROOT = "tests/entities";
@@ -53,7 +53,7 @@ describe("TypeAliasDeclaration extraction (MST fixture)", () => {
 		expect(data.methods.map((m) => m.name)).toContain("disposeModel");
 	});
 
-	it("extracts the alias duplicate with aliasOf set", () => {
+	it("extracts the alias with aliasOf set", () => {
 		const pretty = byName(entities, "PrettyModelData");
 		expect(pretty).toBeTruthy();
 		expect(pretty.kind).toBe("type");
@@ -65,16 +65,19 @@ describe("TypeAliasDeclaration extraction (MST fixture)", () => {
 		expect(byName(entities, "ResolveStore")).toBeUndefined();
 	});
 
-	it("flags the alias duplicate via the alias fast path", () => {
+	it("reports the alias as inheritance, NOT a duplicate", () => {
 		const pretty = byName(entities, "PrettyModelData");
 		const data = byName(entities, "DocumentData");
 		const signals = matchSignals(pretty, data, {});
 		const decision = decide(pretty, data, { signals });
 
-		expect(decision.isDuplicate).toBe(true);
-		expect(decision.tier).toBe("duplicate");
-		expect(decision.confidence).toBeGreaterThanOrEqual(0.85);
+		expect(decision.isDuplicate).toBe(false);
+		expect(decision.tier).toBe("alias");
 		expect(decision.reason).toMatch(/alias/);
+		// The alias fact is carried by the inheritance signal, not by name overlap.
+		expect(signals.inheritance.hasEvidence).toBe(true);
+		expect(signals.inheritance.score).toBe(1);
+		expect(signals.inheritance.evidence.alias).toEqual({ alias: "PrettyModelData", target: "DocumentData" });
 	});
 
 	it("flags the hand-written copy of the store model as a duplicate", () => {
@@ -102,11 +105,11 @@ describe("full pipeline over the new fixtures", () => {
 	});
 	const result = main.run(config);
 
-	it("flags the MST alias and store-model-copy pairs as duplicates", () => {
+	it("reports the MST alias as an alias verdict and the store-model copy as a duplicate", () => {
 		const aliasDup = result.matches.find((m) => pairNames(m) === "DocumentData|PrettyModelData");
 		expect(aliasDup).toBeTruthy();
-		expect(aliasDup.tier).toBe("duplicate");
-		expect(aliasDup.decision.confidence).toBeGreaterThanOrEqual(0.85);
+		expect(aliasDup.tier).toBe("alias");
+		expect(aliasDup.decision.isDuplicate).toBe(false);
 
 		const copyDup = result.matches.find((m) => pairNames(m) === "DocumentData|DocumentStoreModel");
 		expect(copyDup).toBeTruthy();

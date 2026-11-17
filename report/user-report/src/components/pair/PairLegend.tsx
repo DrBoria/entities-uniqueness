@@ -1,0 +1,69 @@
+"use strict";
+
+import React from "react";
+import styled from "styled-components";
+import { signalOf } from "../../../../errorTypes/vocabulary/labels";
+import { percentOf } from "../../../../../evidence";
+import { pairTheme } from "./theme";
+
+// The legend under the tabs: what the colours mean, and the selected signal's
+// score × weight. The signature tab also shows the shared entity-name tokens (a
+// name is part of a signature). Reads only the decision and the analysis scores —
+// no ranges, no rows.
+
+const Legend = styled.div`
+	display: flex;
+	flex-wrap: wrap;
+	gap: 16px;
+	align-items: center;
+	padding: 5px 10px;
+	border-bottom: 1px solid ${pairTheme.chrome.border};
+	background: ${pairTheme.chrome.panel};
+	font-family: ${pairTheme.font.sans};
+	font-size: 11.5px;
+	color: ${pairTheme.chrome.dim};
+`;
+
+const Dot = styled.span`
+	display: inline-block;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: ${(p) => p.$c};
+	margin-right: 5px;
+`;
+
+const percent = (value) => `${Math.round((value ?? 0) * 100)}%`;
+
+export const PairLegend = ({ mode, pair, decision }) => {
+	const group = signalOf(mode);
+	const signal = (decision?.signals ?? []).find((item) => item.key === mode) ?? null;
+	const name = mode === "signature" ? pair.analysis?.signature?.name ?? null : null;
+
+	return (
+		<Legend>
+			<span>
+				<Dot $c={pairTheme.band.same} /> red = duplicate · no % = 100% · with % = a partial duplicate at that percent
+			</span>
+			<span>
+				<Dot $c={pairTheme.band.diff} /> green = a member on one side only (100% unique), drawn as a short stub
+			</span>
+			<span>no ribbon = nothing compared here</span>
+			{name ? (
+				<span title="tokens both names share" style={{ color: pairTheme.chrome.text }}>
+					name {percent(name.score)}
+					{name.common?.length ? ` (${name.common.join(" + ")})` : ""}
+				</span>
+			) : null}
+			{signal ? (
+				<span style={{ marginLeft: "auto", color: pairTheme.chrome.faint }} title={signal.fastPath ? (decision?.reason ?? "decided by a structural fact, not the weighted blend") : undefined}>
+					{signal.fastPath
+						? `${group.label} ${percentOf(signal.score)}% — decides the verdict (${Math.round((signal.contribution ?? 1) * 100)}%)`
+						: `${group.label} ${percentOf(signal.score)}% × ${signal.weight.toFixed(2)} = ${(signal.score * signal.weight).toFixed(2)}`}
+				</span>
+			) : null}
+		</Legend>
+	);
+};
+
+export default PairLegend;

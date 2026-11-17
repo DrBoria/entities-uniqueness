@@ -3,10 +3,10 @@ import { createRequire } from "node:module";
 import path from "node:path";
 
 const require = createRequire(import.meta.url);
-const normalizer = require("../normalizer/index.js");
-const { normalizeEntities } = require("../frameworks/entrypoint.js");
-const { matchSignals } = require("../matcher/index.js");
-const decisionMaker = require("../decision-maker.js");
+const normalizer = require("../dist/normalizer/index.js");
+const { normalizeEntities } = require("../dist/frameworks/entrypoint.js");
+const { matchSignals } = require("../dist/matcher/index.js");
+const decisionMaker = require("../dist/decision-maker.js");
 
 const pluginDir = path.resolve(__dirname, "..");
 
@@ -34,13 +34,15 @@ describe("generic placeholder types must not saturate the properties signal", ()
 	const profileA = find(load("duplicates/generic/profile-a.ts"), "profileA");
 	const profileB = find(load("duplicates/generic/profile-b.ts"), "profileB");
 
-	it("sees generic placeholder types on the un-annotated metadata literals", () => {
+	it("infers concrete shapes for the un-annotated metadata literals", () => {
 		const types = pageA.properties.map((p) => p.type);
 		// Nested members (alternates/openGraph/twitter/keywords) have no annotations,
-		// so they come out as generic placeholders (object/array) that carry no type
-		// identity — these are what used to saturate the type-agreement signal.
-		expect(types).toContain("object");
-		expect(types).toContain("array");
+		// but the resolver widens their literal values to concrete shapes
+		// (`{canonical:string}`, `string[]`) — real type identity, not a bare
+		// object/array placeholder. No raw `z.*`/value text leaks through.
+		expect(types).toContain("{canonical:string}");
+		expect(types).toContain("string[]");
+		expect(types.every((t) => !t.startsWith("z."))).toBe(true);
 	});
 
 	it("does NOT score two generic-shaped literals that differ on a field as properties=1.0", () => {

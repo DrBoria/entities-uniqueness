@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 
 const require = createRequire(import.meta.url);
-const main = require("../main.js");
+const main = require("../dist/main.js");
 const pluginDir = path.resolve(__dirname, "..");
 
 describe("ignore dirs", () => {

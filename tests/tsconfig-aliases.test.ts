@@ -5,7 +5,7 @@ import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 const require = createRequire(import.meta.url);
-const { parseAndExtract, setTsConfig } = require("../normalizer");
+const { parseAndExtract, setTsConfig } = require("../dist/normalizer");
 
 // Entity property types come from the TYPE CHECKER (`getType()`), and a checker
 // can only answer for files that are in the program. A project holding one file

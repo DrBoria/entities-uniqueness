@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 
 const pluginDir = path.resolve(__dirname, "..");
-const mainJs = path.join(pluginDir, "main.js");
+const mainJs = path.join(pluginDir, "dist", "main.js");
 const tmpRoot = mkdtempSync(path.join(os.tmpdir(), "eu-cli-"));
 
 afterAll(() => {
@@ -54,10 +54,15 @@ describe("CLI", () => {
 		expect(md).toContain("## High-confidence duplicates");
 		expect(md).toContain("| UserService |");
 		expect(md).toContain("| userSchema |");
-		expect(md).toContain("## Clusters of similar entities");
+		expect(md).toContain("## Cross-file copies");
 		expect(md).toContain("DocumentStoreModel");
 		expect(md).toContain("## Refactor suggestions");
 		expect(md).toContain("shared-type");
+		// The rich report carries every tab the page draws, with locations and
+		// each matcher's own lines — like utils, not a prose summary.
+		expect(md).toContain("## Aliases / inheritance");
+		expect(md).toContain("### Why each one matched");
+		expect(md).toMatch(/Properties\s+\d+%/);
 	},
 	30_000,
 	);
@@ -78,9 +83,10 @@ describe("CLI", () => {
 			]);
 			const md = readReport(report);
 
-			// The forced fast-path pairs (alias, store-model-copy, identical
-			// shape) are structural facts and survive any threshold.
-			expect(md).toContain("Found 3 high-confidence duplicate pair(s)");
+			// The forced fast-path pairs (store-model-copy, identical shape) are
+			// structural facts and survive any threshold. The alias is an `alias`
+			// verdict (reuse), never a duplicate, so it is not counted here.
+			expect(md).toContain("Found 2 duplicate pair(s)");
 		},
 		30_000,
 	);
