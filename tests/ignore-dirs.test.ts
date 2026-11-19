@@ -8,7 +8,7 @@ const pluginDir = path.resolve(__dirname, "..");
 
 describe("ignore dirs", () => {
 it("ignores generated storybook-static output by default", () => {
-const config = main.buildConfig(pluginDir, null, { roots: ["tests/entities"], thresholds: null, weights: null, verbose: false, out: null, requireExported: false, include: null });
+const config = main.buildConfig(pluginDir, null, { roots: ["tests/duplicates"], thresholds: null, weights: null, verbose: false, out: null, requireExported: false, include: null });
 
 expect(config.ignoreDirs).toContain("storybook-static");
 });

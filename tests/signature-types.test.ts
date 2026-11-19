@@ -60,7 +60,7 @@ describe("signature follows the methods pairing — a rename is still compared",
 	});
 
 	it("e09: 8 one-letter-renamed methods with identical signatures → signature 100%, verdict duplicate", () => {
-		const all = loadDir(path.resolve(__dirname, "..", "..", "adversarial", "entities", "src", "e09"));
+		const all = loadDir(path.resolve(__dirname, "duplicates", "e09"));
 		const a = all.find((e) => e.name === "TicketFacade");
 		const b = all.find((e) => e.name === "TicketService");
 		const s = matchSignals(a, b, { entities: all });
@@ -81,7 +81,7 @@ describe("signature follows the methods pairing — a rename is still compared",
 });
 
 describe("e14: same property names, every type different — properties grades it, not a duplicate", () => {
-	const all = loadDir(path.resolve(__dirname, "..", "..", "adversarial", "entities", "src", "e14"));
+	const all = loadDir(path.resolve(__dirname, "duplicates", "e14"));
 	const a = all.find((e) => e.name === "SensorCalibration");
 	const b = all.find((e) => e.name === "SensorSample");
 

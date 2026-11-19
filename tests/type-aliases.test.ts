@@ -10,7 +10,7 @@ const { matchSignals } = require("../dist/matcher/index.js");
 const { decide } = require("../dist/decision-maker.js");
 
 const pluginDir = path.resolve(__dirname, "..");
-const ENTITIES_ROOT = "tests/entities";
+const ENTITIES_ROOT = "tests/duplicates";
 
 const parseFixture = (rel) => {
 	const ctx = normalizer.parseAndExtract(path.join(pluginDir, rel));

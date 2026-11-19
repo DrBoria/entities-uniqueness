@@ -1,0 +1,257 @@
+{
+	"engine": "entities",
+	"traps": [
+		{
+			"id": "e01",
+			"title": "GraphQL interface vs Apollo fragment type",
+			"trick": "Same 8 fields (incl. nested lines[] and shippingAddress{}) declared as a server-side interface and a client-side type literal, different order and name; no GraphQL normalizer, plain TS.",
+			"expect": "duplicate",
+			"a": {
+				"file": "tests/duplicates/e01/schema.ts",
+				"name": "GqlOrder"
+			},
+			"b": {
+				"file": "tests/duplicates/e01/fragments.ts",
+				"name": "OrderFragment"
+			}
+		},
+		{
+			"id": "e02",
+			"title": "MobX observable class vs plain interface",
+			"trick": "SessionStore (makeObservable/observable) and SessionRecord interface share 8 identical properties; the framework wrapper must not hide the shape match.",
+			"expect": "duplicate",
+			"a": {
+				"file": "tests/duplicates/e02/session-store.ts",
+				"name": "SessionStore"
+			},
+			"b": {
+				"file": "tests/duplicates/e02/session-record.ts",
+				"name": "SessionRecord"
+			}
+		},
+		{
+			"id": "e03",
+			"title": "Redux slice state vs Zustand store shape",
+			"trick": "CartState (redux) and CartStore (zustand) declare the same 6 fields in different order; the createSlice/create call objects are not entities, only the named types are.",
+			"expect": "duplicate",
+			"a": {
+				"file": "tests/duplicates/e03/redux-cart.ts",
+				"name": "CartState"
+			},
+			"b": {
+				"file": "tests/duplicates/e03/zustand-cart.ts",
+				"name": "CartStore"
+			}
+		},
+		{
+			"id": "e04",
+			"title": "Zod schema vs plain interface",
+			"trick": "PaymentSchema (z.object) and Payment interface describe the same 8 fields incl. enum/nullable/optional; zod normalizer must reduce the schema to the same property set.",
+			"expect": "duplicate",
+			"a": {
+				"file": "tests/duplicates/e04/schema.ts",
+				"name": "PaymentSchema"
+			},
+			"b": {
+				"file": "tests/duplicates/e04/payment.ts",
+				"name": "Payment"
+			}
+		},
+		{
+			"id": "e05",
+			"title": "Bare type alias (reuse, not copy)",
+			"trick": "type Account = AccountBase is a pure rename -> alias verdict, NOT duplicate. Bonus reuse check in same folder: PremiumAccount extends AccountBase must be none/alias, not duplicate.",
+			"expect": "alias",
+			"a": {
+				"file": "tests/duplicates/e05/base.ts",
+				"name": "AccountBase"
+			},
+			"b": {
+				"file": "tests/duplicates/e05/alias.ts",
+				"name": "Account"
+			}
+		},
+		{
+			"id": "e06",
+			"title": "Unannotated object duplicates a type without implements",
+			"trick": "defaultDeliveryTarget is an UNANNOTATED const whose shape+values mirror the NotificationEndpoint interface; no annotation/implements, so both are separate entities describing one thing.",
+			"expect": "duplicate",
+			"a": {
+				"file": "tests/duplicates/e06/contract.ts",
+				"name": "NotificationEndpoint"
+			},
+			"b": {
+				"file": "tests/duplicates/e06/defaults.ts",
+				"name": "defaultDeliveryTarget"
+			}
+		},
+		{
+			"id": "e07",
+			"title": "Renamed copy: all keys different, deep values identical",
+			"trick": "releaseGate vs rolloutPolicy: every key renamed at every level, but the deep value tree (>=3 levels, arrays, mixed primitives) is byte-identical -> renamed-copy duplicate.",
+			"expect": "duplicate",
+			"a": {
+				"file": "tests/duplicates/e07/release-gate.ts",
+				"name": "releaseGate"
+			},
+			"b": {
+				"file": "tests/duplicates/e07/rollout-policy.ts",
+				"name": "rolloutPolicy"
+			}
+		},
+		{
+			"id": "e08",
+			"title": "Partial value overlap must veto duplicate",
+			"trick": "digestSettings vs alertPreferences: same structure, all keys renamed, exactly 6 of 12 leaf values differ -> values veto, similar not duplicate.",
+			"expect": "similar",
+			"a": {
+				"file": "tests/duplicates/e08/digest-settings.ts",
+				"name": "digestSettings"
+			},
+			"b": {
+				"file": "tests/duplicates/e08/alert-preferences.ts",
+				"name": "alertPreferences"
+			}
+		},
+		{
+			"id": "e09",
+			"title": "Method names one letter apart",
+			"trick": "TicketService vs TicketFacade: 8 methods each differing by a single mid-name letter (fetchTicket/fetchTirket); property names match but values differ, isolating the near-miss method signal -> similar.",
+			"expect": "similar",
+			"a": {
+				"file": "tests/duplicates/e09/ticket-service.ts",
+				"name": "TicketService"
+			},
+			"b": {
+				"file": "tests/duplicates/e09/ticket-facade.ts",
+				"name": "TicketFacade"
+			}
+		},
+		{
+			"id": "e10",
+			"title": "Long shared method prefix",
+			"trick": "InternalCustomerRepository vs CustomerRepository: identical 6-method set modulo the 'internalRepository' prefix on every name; no properties. Judgment call: similar (duplicate if prefixes stripped, none if exact-name matching).",
+			"expect": "similar",
+			"a": {
+				"file": "tests/duplicates/e10/internal-repository.ts",
+				"name": "InternalCustomerRepository"
+			},
+			"b": {
+				"file": "tests/duplicates/e10/customer-repository.ts",
+				"name": "CustomerRepository"
+			}
+		},
+		{
+			"id": "e11",
+			"title": "Enum vs string-literal union, same closed set",
+			"trick": "ShipmentStatus enum and ShipmentState union hold the same 8 string members in different order -> values duplicate.",
+			"expect": "duplicate",
+			"a": {
+				"file": "tests/duplicates/e11/status-enum.ts",
+				"name": "ShipmentStatus"
+			},
+			"b": {
+				"file": "tests/duplicates/e11/state-union.ts",
+				"name": "ShipmentState"
+			}
+		},
+		{
+			"id": "e12",
+			"title": "Enum vs union with one extra member",
+			"trick": "InvoiceStatus (6 members) vs BillingState (same 6 + 'disputed'); near-miss closed sets must not collapse to duplicate -> similar/extract.",
+			"expect": "similar",
+			"a": {
+				"file": "tests/duplicates/e12/invoice-enum.ts",
+				"name": "InvoiceStatus"
+			},
+			"b": {
+				"file": "tests/duplicates/e12/billing-union.ts",
+				"name": "BillingState"
+			}
+		},
+		{
+			"id": "e13",
+			"title": "Interface vs implementing class with extra private machinery",
+			"trick": "Interface vs class that IMPLEMENTS it + extra private machinery. Implements is reuse (inheritance), not duplication \u2014 the engine must NOT call it a duplicate (drop-inheritance).",
+			"expect": "none",
+			"a": {
+				"file": "tests/duplicates/e13/event-channel.ts",
+				"name": "EventChannel"
+			},
+			"b": {
+				"file": "tests/duplicates/e13/kafka-channel.ts",
+				"name": "KafkaEventChannel"
+			}
+		},
+		{
+			"id": "e14",
+			"title": "Same property names, every type different (negative)",
+			"trick": "SensorSample vs SensorCalibration: identical 8 property names but every type genuinely differs (string/number/boolean/array/object swapped) -> none, not duplicate.",
+			"expect": "none",
+			"a": {
+				"file": "tests/duplicates/e14/sensor-sample.ts",
+				"name": "SensorSample"
+			},
+			"b": {
+				"file": "tests/duplicates/e14/sensor-calibration.ts",
+				"name": "SensorCalibration"
+			}
+		},
+		{
+			"id": "e15",
+			"title": "MST model vs MobX class, same domain shape",
+			"trick": "WarehouseModel (mobx-state-tree types.model) and WarehouseStore (mobx class) share 7 fields incl. maybe/undefined; two recognized frameworks, one shape -> duplicate.",
+			"expect": "duplicate",
+			"a": {
+				"file": "tests/duplicates/e15/warehouse-model.ts",
+				"name": "WarehouseModel"
+			},
+			"b": {
+				"file": "tests/duplicates/e15/warehouse-store.ts",
+				"name": "WarehouseStore"
+			}
+		},
+		{
+			"id": "e16",
+			"title": "Keystone list config vs class-validator DTO",
+			"trick": "ProductListing (keystone list fields) and ProductDto (class-validator decorated class) describe the same 6 product fields; both frameworks recognized -> duplicate.",
+			"expect": "duplicate",
+			"a": {
+				"file": "tests/duplicates/e16/keystone-product.ts",
+				"name": "ProductListing"
+			},
+			"b": {
+				"file": "tests/duplicates/e16/product-dto.ts",
+				"name": "ProductDto"
+			}
+		},
+		{
+			"id": "e17",
+			"title": "Intersection extension is reuse, not copy (negative)",
+			"trick": "type AuditedWebhookEvent = WebhookEvent & {extra} builds ON TOP of the base; inheritance/reuse -> none, not duplicate (not a bare alias either).",
+			"expect": "none",
+			"a": {
+				"file": "tests/duplicates/e17/base.ts",
+				"name": "WebhookEvent"
+			},
+			"b": {
+				"file": "tests/duplicates/e17/extended.ts",
+				"name": "AuditedWebhookEvent"
+			}
+		},
+		{
+			"id": "e18",
+			"title": "Getters vs readonly properties (invention)",
+			"trick": "FeatureFlagState exposes the same 8 flags as FeatureFlagView through getters over a private snapshot instead of readonly stored properties; tests accessor-vs-property normalization. High variance: similar (none if getters count as methods, duplicate if normalized to properties).",
+			"expect": "similar",
+			"a": {
+				"file": "tests/duplicates/e18/flag-view.ts",
+				"name": "FeatureFlagView"
+			},
+			"b": {
+				"file": "tests/duplicates/e18/flag-state.ts",
+				"name": "FeatureFlagState"
+			}
+		}
+	]
+}

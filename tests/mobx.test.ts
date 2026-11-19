@@ -7,7 +7,7 @@ const normalizer = require("../dist/normalizer/index.js");
 const { normalizeEntities } = require("../dist/frameworks/entrypoint.js");
 
 const pluginDir = path.resolve(__dirname, "..");
-const MOBX_FILE = path.join(pluginDir, "tests", "entities", "mobx", "jabber-store.ts");
+const MOBX_FILE = path.join(pluginDir, "tests", "duplicates", "mobx", "jabber-store.ts");
 
 // Mirrors Jabberwock's mobx stores: makeAutoObservable object literals, both
 // inside a factory function (createCLIStore) and top-level (topStore).

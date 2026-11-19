@@ -10,9 +10,9 @@ const { normalizeEntities } = require(path.join(base, "frameworks/entrypoint.js"
 const { matchSignals } = require(path.join(base, "matcher/index.js"));
 const { effectiveHeritage } = require(path.join(base, "matcher/heritage.js"));
 
-const DIR = path.resolve(__dirname, "entities", "inheritance");
+const DIR = path.resolve(__dirname, "duplicates", "inheritance");
 
-// Every fixture in tests/entities/inheritance, normalized together so the
+// Every fixture in tests/duplicates/inheritance, normalized together so the
 // heritage closure can resolve bases across files (the project index).
 const loadAll = () => {
 	const all = [];

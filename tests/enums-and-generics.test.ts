@@ -7,7 +7,7 @@ const { parseAndExtract } = require("../dist/normalizer/index.js");
 const { decide } = require("../dist/decision-maker.js");
 const { matchSignals } = require("../dist/matcher/index.js");
 
-const FIXTURE = path.resolve(__dirname, "entities-enums/shapes.ts");
+const FIXTURE = path.resolve(__dirname, "duplicates", "enums", "shapes.ts");
 
 const entities = () => parseAndExtract(FIXTURE).entities;
 const byName = (name) => entities().find((e) => e.name === name);

@@ -6,7 +6,7 @@ const require = createRequire(import.meta.url);
 const main = require("../dist/main.js");
 
 const pluginDir = path.resolve(__dirname, "..");
-const ENTITIES_ROOT = "tests/entities";
+const ENTITIES_ROOT = "tests/duplicates";
 
 const buildConfig = (overrides = {}) => {
 	const root = pluginDir;
@@ -283,10 +283,26 @@ describe("entities pipeline", () => {
 		// Only the forced (fast-path) duplicates survive a 0.99 bar: store-model-copy
 		// and identical-shape pairs are structural facts, not heuristic scores. The
 		// alias is an `alias` verdict (reuse), never a duplicate, at any threshold.
+		// The consolidated fixture root also carries the adversarial traps (e07,
+		// e11), the enum shapes, identical-objects, values and trees-orient — all
+		// of which contribute their own forced duplicates (15 pairs total).
 		const dups = result.matches.filter((m) => m.tier === "duplicate");
 		expect(dups.map(pairNames).sort()).toEqual([
+			"DAY_PALETTE|THEME_LIGHT",
 			"DocumentData|DocumentStoreModel",
+			"DrParent|Parent",
+			"InvoiceStatus|PaymentState",
+			"InvoiceStatus|PaymentStatus",
+			"PaymentState|PaymentStatus",
+			"ShipmentState|ShipmentStatus",
 			"TokenQuery|TokenQueryCopy",
+			"releaseGate|rolloutPolicy",
+			"stylingA|stylingA",
+			"stylingA|stylingB",
+			"stylingA|stylingB",
+			"stylingA|stylingB",
+			"stylingA|stylingB",
+			"stylingB|stylingB",
 		]);
 	});
 

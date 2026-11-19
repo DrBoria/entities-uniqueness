@@ -6,7 +6,7 @@ const require = createRequire(import.meta.url);
 const normalizer = require("../dist/normalizer/index.js");
 
 const pluginDir = path.resolve(__dirname, "..");
-const E2E_FILE = path.join(pluginDir, "tests", "Trash", "e2e", "widget.e2e.ts");
+const E2E_FILE = path.join(pluginDir, "tests", "duplicates", "Trash", "e2e", "widget.e2e.ts");
 
 describe("e2e test files", () => {
 	it("excludes *.e2e.ts specs like other test files", () => {

@@ -47,7 +47,7 @@ describe("CLI", () => {
 		"runs the full pipeline and writes a report + catalog",
 		() => {
 			const report = "reports/cli-report.md";
-		runCli(["--repo-root", ".", "--roots", "tests/entities", "--report", report, "--verbose"]);
+		runCli(["--repo-root", ".", "--roots", "tests/duplicates", "--report", report, "--verbose"]);
 		const md = readReport(report);
 
 		expect(md).toContain("# Entity similarity report");
@@ -75,7 +75,7 @@ describe("CLI", () => {
 				"--repo-root",
 				".",
 				"--roots",
-				"tests/entities",
+				"tests/duplicates",
 				"--thresholds",
 				"0.99:0.98:0.97",
 				"--report",
@@ -85,8 +85,10 @@ describe("CLI", () => {
 
 			// The forced fast-path pairs (store-model-copy, identical shape) are
 			// structural facts and survive any threshold. The alias is an `alias`
-			// verdict (reuse), never a duplicate, so it is not counted here.
-			expect(md).toContain("Found 2 duplicate pair(s)");
+			// verdict (reuse), never a duplicate, so it is not counted here. The
+			// consolidated root adds forced duplicates from the merged fixtures
+			// (enums, e07/e11 traps, identical-objects, values, trees-orient): 15.
+			expect(md).toContain("Found 15 duplicate pair(s)");
 		},
 		30_000,
 	);
@@ -95,7 +97,7 @@ describe("CLI", () => {
 		"writes a JSONL stage log with --log",
 		() => {
 			const logFile = path.join(tmpRoot, "stage.log");
-			runCli(["--repo-root", ".", "--roots", "tests/entities", "--log", logFile]);
+			runCli(["--repo-root", ".", "--roots", "tests/duplicates", "--log", logFile]);
 
 			expect(existsSync(logFile)).toBe(true);
 			const lines = readFileSync(logFile, "utf8").trim().split("\n").filter(Boolean);
@@ -111,7 +113,7 @@ describe("CLI", () => {
 			const report = "reports/cli-files.md";
 			const catalog = path.join(pluginDir, "reports", "entities-catalog.json");
 			const before = existsSync(catalog) ? readFileSync(catalog, "utf8") : null;
-			const out = runCli(["--repo-root", ".", "--files", "tests/entities/users/UserService.ts", "--report", report]);
+			const out = runCli(["--repo-root", ".", "--files", "tests/duplicates/users/UserService.ts", "--report", report]);
 			const md = readReport(report);
 
 			expect(out).toContain("scanned 1 file(s), 1 entity");
@@ -127,7 +129,7 @@ describe("CLI", () => {
 		"--files silently skips missing files",
 		() => {
 			const report = "reports/cli-files-missing.md";
-			const out = runCli(["--repo-root", ".", "--files", "tests/entities/does-not-exist.ts", "--report", report]);
+			const out = runCli(["--repo-root", ".", "--files", "tests/duplicates/does-not-exist.ts", "--report", report]);
 
 			expect(out).toContain("scanned 0 file(s)");
 		},

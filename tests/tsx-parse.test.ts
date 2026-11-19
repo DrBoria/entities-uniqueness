@@ -6,7 +6,7 @@ const require = createRequire(import.meta.url);
 const normalizer = require("../dist/normalizer/index.js");
 
 const pluginDir = path.resolve(__dirname, "..");
-const TSX_FILE = path.join(pluginDir, "tests", "entities", "tsx", "panel.tsx");
+const TSX_FILE = path.join(pluginDir, "tests", "duplicates", "tsx", "panel.tsx");
 
 describe("tsx parsing", () => {
 	it("does not fabricate entities from JSX in .tsx files", () => {

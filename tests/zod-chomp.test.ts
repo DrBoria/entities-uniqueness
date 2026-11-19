@@ -7,7 +7,7 @@ const normalizer = require("../dist/normalizer/index.js");
 const { normalizeEntities } = require("../dist/frameworks/entrypoint.js");
 
 const pluginDir = path.resolve(__dirname, "..");
-const ZOD_FILE = path.join(pluginDir, "tests", "entities", "zod", "chomp-schema.ts");
+const ZOD_FILE = path.join(pluginDir, "tests", "duplicates", "zod", "chomp-schema.ts");
 
 // chomp-2 imports zod from "utils", not "zod" — the fixture mirrors that.
 const normalizeFile = (file) => {
